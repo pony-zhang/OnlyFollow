@@ -45,6 +45,9 @@ function Dashboard() {
     try {
       setState(prev => ({ ...prev, isLoading: true, error: null }));
 
+      // 等待背景脚本准备就绪
+      await waitForBackgroundReady();
+
       // 并行获取所有数据
       const [config, followedUsers, cachedContent, engineStatus, cacheStats] = await Promise.all([
         ChromeExtensionApi.sendMessage('getConfig'),
@@ -70,6 +73,25 @@ function Dashboard() {
         error: error instanceof Error ? error.message : '加载失败',
       }));
     }
+  };
+
+  // 等待背景脚本准备就绪
+  const waitForBackgroundReady = async (maxRetries = 10): Promise<void> => {
+    for (let i = 0; i < maxRetries; i++) {
+      try {
+        const health = await ChromeExtensionApi.sendMessage('healthCheck');
+        if (health?.status === 'ready') {
+          return;
+        }
+      } catch (error) {
+        // 背景脚本可能还没准备好，继续等待
+      }
+
+      // 等待一段时间后重试
+      await new Promise(resolve => setTimeout(resolve, 500));
+    }
+
+    throw new Error('背景脚本未能及时响应，请刷新页面重试');
   };
 
   // 刷新数据

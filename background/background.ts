@@ -45,6 +45,15 @@ class BackgroundService {
 
   // 设置消息监听器
   private setupMessageListeners(): void {
+    // 健康检查
+    ChromeExtensionApi.onMessage('healthCheck', async () => {
+      return {
+        status: 'ready',
+        timestamp: Date.now(),
+        version: chrome.runtime.getManifest().version
+      };
+    });
+
     // 获取配置
     ChromeExtensionApi.onMessage('getConfig', async () => {
       try {

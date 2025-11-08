@@ -178,20 +178,40 @@ export class ChromeExtensionApi {
   static async sendMessage<T = any>(
     action: string,
     data?: any,
-    tabId?: number
+    tabId?: number,
+    retries: number = 3
   ): Promise<T> {
-    try {
-      const message = { action, data, tabId };
+    for (let attempt = 0; attempt < retries; attempt++) {
+      try {
+        const message = { action, data, tabId };
 
-      if (tabId) {
-        return await chrome.tabs.sendMessage(tabId, message);
-      } else {
-        return await chrome.runtime.sendMessage(message);
+        let result: any;
+        if (tabId) {
+          result = await chrome.tabs.sendMessage(tabId, message);
+        } else {
+          result = await chrome.runtime.sendMessage(message);
+        }
+
+        // 检查响应是否包含错误
+        if (result && typeof result === 'object' && 'error' in result) {
+          throw new Error(result.error);
+        }
+
+        return result;
+      } catch (error) {
+        console.error(`发送消息失败 (尝试 ${attempt + 1}/${retries}):`, error);
+
+        // 如果是最后一次尝试，直接抛出错误
+        if (attempt === retries - 1) {
+          throw error;
+        }
+
+        // 等待一段时间后重试
+        await new Promise(resolve => setTimeout(resolve, 500 * (attempt + 1)));
       }
-    } catch (error) {
-      console.error('发送消息失败:', error);
-      throw error;
     }
+
+    throw new Error('消息发送失败');
   }
 
   // 监听消息
@@ -201,16 +221,36 @@ export class ChromeExtensionApi {
   ): void {
     chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       if (message.action === action) {
-        const result = callback(message.data, sender);
+        try {
+          const result = callback(message.data, sender);
 
-        if (result instanceof Promise) {
-          result.then(sendResponse).catch(error => {
-            sendResponse({ error: error.message });
-          });
-          return true; // 保持消息通道开放
+          if (result instanceof Promise) {
+            result
+              .then(data => {
+                // 确保返回的数据是有效的
+                if (data !== undefined) {
+                  sendResponse(data);
+                } else {
+                  sendResponse({ success: true });
+                }
+              })
+              .catch(error => {
+                console.error(`处理消息 ${action} 失败:`, error);
+                sendResponse({ error: error.message });
+              });
+            return true; // 保持消息通道开放
+          }
+
+          // 对于同步结果，确保返回有效数据
+          if (result !== undefined) {
+            sendResponse(result);
+          } else {
+            sendResponse({ success: true });
+          }
+        } catch (error) {
+          console.error(`处理消息 ${action} 失败:`, error);
+          sendResponse({ error: error instanceof Error ? error.message : String(error) });
         }
-
-        sendResponse(result);
       }
     });
   }
