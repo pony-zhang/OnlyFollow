@@ -1,14 +1,65 @@
 import type { Platform } from '../types';
 
+// 平台默认配置
+export const DEFAULT_PLATFORM_CONFIGS: Record<Platform, PlatformConfig> = {
+  bilibili: {
+    enabled: true,
+    requestDelay: 15000, // 15秒，B站API限制极其严格，需要更长间隔
+    concurrentRequests: false, // 强制关闭并发
+    concurrentLimit: 1, // 单线程请求
+    maxItems: 20,
+    customSettings: {
+      followPageSize: 50, // 关注列表每页数量
+      videoPageSize: 50, // 视频列表每页数量
+      safeMode: true, // 安全模式，强制串行
+      minRequestInterval: 15000, // 最小请求间隔增加到15秒
+      errorRetryDelay: 30000, // 错误后重试延迟增加到30秒
+    },
+  },
+  youtube: {
+    enabled: true,
+    requestDelay: 1000, // 1秒，YouTube API相对宽松
+    concurrentRequests: true, // 可以并发
+    concurrentLimit: 3, // 3个并发请求
+    maxItems: 30,
+    customSettings: {
+      apiKey: '', // YouTube API key
+      maxResults: 50,
+    },
+  },
+  twitter: {
+    enabled: true,
+    requestDelay: 2000, // 2秒，Twitter API限制中等
+    concurrentRequests: false, // 建议关闭并发
+    concurrentLimit: 2, // 最多2个并发
+    maxItems: 25,
+    customSettings: {
+      bearerToken: '', // Twitter Bearer Token
+      tweetFields: 'created_at,author_id,public_metrics',
+    },
+  },
+  instagram: {
+    enabled: true,
+    requestDelay: 3000, // 3秒，Instagram API限制较严
+    concurrentRequests: false, // 强制关闭并发
+    concurrentLimit: 1, // 单线程请求
+    maxItems: 15,
+    customSettings: {
+      accessToken: '', // Instagram Access Token
+      mediaFields: 'id,media_type,media_url,caption,timestamp',
+    },
+  },
+};
+
 // 默认配置
 export const DEFAULT_CONFIG = {
   enabledPlatforms: ['bilibili', 'youtube', 'twitter', 'instagram'] as Platform[],
-  contentSettings: {
-    maxItems: 20,
+  globalSettings: {
     refreshInterval: 30 * 60 * 1000, // 30分钟
     shuffleEnabled: true,
-    requestDelay: 2000, // 2秒间隔
+    maxItemsPerPlatform: 20, // 每个平台最大内容数
   },
+  platformSettings: DEFAULT_PLATFORM_CONFIGS,
   uiSettings: {
     showNotifications: true,
     theme: 'auto' as const,

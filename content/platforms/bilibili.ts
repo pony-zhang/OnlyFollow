@@ -12,6 +12,7 @@ import { StorageManager } from "../../shared/utils/storage";
 import { apiClient } from "../../shared/utils/api";
 import { DOMUtils, ContentReplacer } from "../../shared/utils/dom";
 import { NumberFormatter, DateFormatter } from "../../shared/utils/format";
+import { configManager } from "../../core/config/ConfigManager";
 
 export class BilibiliAdapter implements PlatformAdapter {
   readonly platform = "bilibili" as const;
@@ -21,7 +22,11 @@ export class BilibiliAdapter implements PlatformAdapter {
   private readonly videosPerUp = 2;
   private readonly totalVideosNeeded = 20;
   private readonly minUpsNeeded = 15;
-  private requestDelay = 5000; // 默认5秒，将从配置中读取
+  private requestDelay = 15000; // 默认15秒，B站API限制极其严格，将从配置中读取
+  private concurrentRequests = false; // 默认关闭并发，B站限制严格
+  private concurrentLimit = 1; // 并发限制，避免请求失败
+  private rateLimitHitCount = 0; // 频率限制命中计数
+  private lastRateLimitTime = 0; // 上次频率限制时间
 
   // 检查是否在B站页面
   isActive(): boolean {
@@ -218,10 +223,18 @@ export class BilibiliAdapter implements PlatformAdapter {
         const result = await chrome.storage.local.get("onlyfocus_config");
         const config = result.onlyfocus_config;
 
-        if (config?.contentSettings?.requestDelay) {
+        // 优先使用新的平台特定配置，如果不存在则尝试旧配置
+        if (config?.platformSettings?.bilibili?.requestDelay) {
+          this.requestDelay = config.platformSettings.bilibili.requestDelay;
+          console.log(
+            "[Bilibili] 从新配置读取请求间隔:",
+            this.requestDelay,
+            "ms",
+          );
+        } else if (config?.contentSettings?.requestDelay) {
           this.requestDelay = config.contentSettings.requestDelay;
           console.log(
-            "[Bilibili] 从存储读取请求间隔:",
+            "[Bilibili] 从旧配置读取请求间隔:",
             this.requestDelay,
             "ms",
           );
@@ -404,7 +417,7 @@ export class BilibiliAdapter implements PlatformAdapter {
     const cached = await StorageManager.getCache<ContentItem[]>(cacheKey);
 
     if (cached) {
-      console.log(`[Bilibili] 从缓存获取UP ${userId} 的视频`);
+      console.log(`[Bilibili] 从缓存获取UP ${userId} 的视频 (${cached.length} 个)`);
       return this.getRandomVideos(cached, limit);
     }
 
@@ -506,6 +519,9 @@ export class BilibiliAdapter implements PlatformAdapter {
 
   // 获取随机关注内容
   async getRandomContent(): Promise<ContentItem[]> {
+    // 从配置中读取请求设置
+    await this.loadRequestSettings();
+
     const followedUsers = await this.getFollowedUsers();
 
     if (followedUsers.length === 0) {
@@ -526,47 +542,337 @@ export class BilibiliAdapter implements PlatformAdapter {
     );
 
     console.log(`[Bilibili] 选择了 ${selectedUsers.length} 个UP主获取视频`);
+    console.log(`[Bilibili] 请求设置: 延迟=${this.requestDelay}ms, 并发=${this.concurrentRequests}, 并发限制=${this.concurrentLimit}`);
 
-    // 串行获取视频，避免触发速率限制
-    const allVideos: ContentItem[] = [];
+    // 第一步：先从缓存获取所有可用的视频
+    const cachedVideos: ContentItem[] = [];
+    const usersNeedingUpdate: FollowedUser[] = [];
 
+    console.log(`[Bilibili] 第一阶段：检查缓存...`);
     for (let i = 0; i < selectedUsers.length; i++) {
       const user = selectedUsers[i];
 
       try {
-        console.log(
-          `[Bilibili] 开始获取第 ${i + 1}/${selectedUsers.length} 个UP主的视频: ${user.displayName}`,
-        );
-        const videos = await this.getUserContent(user.platformId);
+        const cacheKey = `onlyfocus_bilibili_videos_${user.platformId}`;
+        const cached = await StorageManager.getCache<ContentItem[]>(cacheKey);
 
-        if (videos.length > 0) {
-          console.log(
-            `[Bilibili] ${user.displayName}: 随机选择了 ${videos.length} 个视频`,
-          );
-          allVideos.push(...videos);
-        }
-
-        // UP主间延迟（除了最后一个）
-        if (i < selectedUsers.length - 1) {
-          console.log(
-            `[Bilibili] 等待 ${this.requestDelay}ms 后获取下一个UP主的视频...`,
-          );
-          await this.delay(this.requestDelay);
+        if (cached) {
+          console.log(`[Bilibili] ${user.displayName}: 使用缓存视频 (${cached.length} 个)`);
+          const videos = this.getRandomVideos(cached, this.videosPerUp);
+          cachedVideos.push(...videos);
+        } else {
+          console.log(`[Bilibili] ${user.displayName}: 需要网络请求`);
+          usersNeedingUpdate.push(user);
         }
       } catch (error) {
-        console.error(`[Bilibili] 获取 ${user.displayName} 的视频失败:`, error);
+        console.error(`[Bilibili] 检查 ${user.displayName} 缓存失败:`, error);
+        usersNeedingUpdate.push(user);
       }
     }
 
-    // 再次随机打乱所有视频
-    const shuffledVideos = allVideos.sort(() => Math.random() - 0.5);
-    const finalVideos = shuffledVideos.slice(0, this.totalVideosNeeded);
+    console.log(`[Bilibili] 缓存阶段完成，获得 ${cachedVideos.length} 个视频，需要更新 ${usersNeedingUpdate.length} 个UP主`);
+
+    // 第二步：如果有缓存视频，先进行界面替换
+    if (cachedVideos.length > 0) {
+      console.log(`[Bilibili] 使用缓存视频进行界面替换 (${cachedVideos.length} 个)`);
+      try {
+        await this.replaceContent(cachedVideos);
+      } catch (error) {
+        console.error('[Bilibili] 使用缓存视频替换内容失败:', error);
+      }
+    }
+
+    // 第三步：异步更新需要网络请求的UP主视频
+    if (usersNeedingUpdate.length > 0) {
+      console.log(`[Bilibili] 第二阶段：网络请求更新 ${usersNeedingUpdate.length} 个UP主...`);
+
+      // 在后台异步更新，不阻塞界面
+      this.updateUserVideosInBackground(usersNeedingUpdate);
+    }
+
+    // 返回当前可用的视频（主要是缓存视频）
+    const finalVideos = cachedVideos.slice(0, this.totalVideosNeeded);
 
     console.log(
-      `[Bilibili] 获取到 ${finalVideos.length} 个来自 ${selectedUsers.length} 个不同UP主的随机视频`,
+      `[Bilibili] 立即返回 ${finalVideos.length} 个缓存视频，${usersNeedingUpdate.length} 个UP主将在后台更新`,
     );
 
     return finalVideos;
+  }
+
+  // 后台异步更新UP主视频 - 支持并发配置
+  private async updateUserVideosInBackground(users: FollowedUser[]): Promise<void> {
+    console.log(`[Bilibili] 后台更新开始，共 ${users.length} 个UP主`);
+    console.log(`[Bilibili] 更新模式: ${this.concurrentRequests ? '并发' : '串行'}处理`);
+
+    if (this.concurrentRequests) {
+      // 并发处理模式
+      await this.updateUsersConcurrently(users);
+    } else {
+      // 串行处理模式（默认，B站限制严格）
+      await this.updateUsersSequentially(users);
+    }
+
+    console.log(`[Bilibili] 后台更新完成`);
+  }
+
+  // 并发处理用户更新
+  private async updateUsersConcurrently(users: FollowedUser[]): Promise<void> {
+    console.log(`[Bilibili] 并发更新模式，并发限制: ${this.concurrentLimit}`);
+
+    // 将用户分批处理
+    const batches: FollowedUser[][] = [];
+    for (let i = 0; i < users.length; i += this.concurrentLimit) {
+      batches.push(users.slice(i, i + this.concurrentLimit));
+    }
+
+    console.log(`[Bilibili] 分为 ${batches.length} 批，每批最多 ${this.concurrentLimit} 个并发请求`);
+
+    // 分批并发处理
+    for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
+      const batch = batches[batchIndex];
+
+      console.log(`[Bilibili] 处理第 ${batchIndex + 1}/${batches.length} 批，包含 ${batch.length} 个UP主`);
+
+      // 批内并发请求
+      const batchPromises = batch.map(async (user, userIndex) => {
+        try {
+          console.log(
+            `[Bilibili] 并发更新UP主: ${user.displayName} (批次 ${batchIndex + 1}-${userIndex + 1})`,
+          );
+
+          // 直接调用网络请求，跳过缓存检查
+          await this.fetchUserVideosFromNetwork(user.platformId);
+
+          return { success: true, user: user.displayName };
+        } catch (error) {
+          console.error(`[Bilibili] 并发更新 ${user.displayName} 失败:`, error);
+          return { success: false, user: user.displayName, error };
+        }
+      });
+
+      // 等待当前批次完成
+      const batchResults = await Promise.allSettled(batchPromises);
+
+      // 统计结果
+      const successful = batchResults.filter(r => r.status === 'fulfilled' && r.value?.success).length;
+      console.log(`[Bilibili] 批次 ${batchIndex + 1} 完成: ${successful}/${batch.length} 个成功`);
+
+      // 批次间延迟（如果有下一批）
+      if (batchIndex < batches.length - 1) {
+        console.log(`[Bilibili] 批次间等待 ${this.requestDelay * 2}ms 后处理下一批...`);
+        await this.delay(this.requestDelay * 2); // 批次间延迟加倍
+      }
+    }
+  }
+
+  // 串行处理用户更新
+  private async updateUsersSequentially(users: FollowedUser[]): Promise<void> {
+    const updateStartTime = Date.now();
+    console.log(`[Bilibili] 串行更新模式，请求间隔: ${this.requestDelay}ms - 开始时间: ${new Date(updateStartTime).toLocaleTimeString()}`);
+
+    // 重置频率限制计数
+    this.rateLimitHitCount = 0;
+    this.lastRateLimitTime = 0;
+
+    for (let i = 0; i < users.length; i++) {
+      const user = users[i];
+      const userStartTime = Date.now();
+
+      // 检查是否需要跳过后续请求（如果连续遇到频率限制）
+      if (this.shouldSkipDueToRateLimit()) {
+        console.log(`[Bilibili] 连续遇到频率限制，跳过剩余 ${users.length - i} 个UP主`);
+        break;
+      }
+
+      try {
+        console.log(
+          `[Bilibili] 串行更新第 ${i + 1}/${users.length} 个UP主: ${user.displayName} - 开始时间: ${new Date(userStartTime).toLocaleTimeString()}`,
+        );
+
+        // 直接调用网络请求，跳过缓存检查
+        await this.fetchUserVideosFromNetwork(user.platformId);
+
+        // 成功后重置频率限制计数
+        this.rateLimitHitCount = 0;
+
+        const userDuration = Date.now() - userStartTime;
+        console.log(`[Bilibili] UP主 ${user.displayName} 处理完成 - 耗时: ${userDuration}ms`);
+
+        // UP主间延迟 - 对于B站需要更长的间隔
+        if (i < users.length - 1) {
+          // B站API限制极其严格，使用更长的间隔
+          const delayTime = Math.max(this.requestDelay * 1.5, 20000); // 至少20秒间隔，或配置值的1.5倍
+          const nextUserTime = Date.now() + delayTime;
+          console.log(
+            `[Bilibili] 串行更新等待 ${delayTime}ms 后处理下一个UP主，预计开始时间: ${new Date(nextUserTime).toLocaleTimeString()} (B站严格模式)...`,
+          );
+          await this.delay(delayTime);
+        }
+      } catch (error) {
+        const userDuration = Date.now() - userStartTime;
+        console.error(`[Bilibili] 串行更新 ${user.displayName} 失败 - 耗时: ${userDuration}ms:`, error);
+
+        // 如果是频率限制错误，使用API返回的ttl进行智能等待
+        // B站频率限制错误特征：code:-799 或包含"API频率限制"或"请求过于频繁"
+        if (error.message.includes('API频率限制') ||
+            error.message.includes('请求过于频繁') ||
+            error.message.includes('code:-799') ||
+            error.message.includes('频率限制') ||
+            error.message.includes('过于频繁')) {
+          this.rateLimitHitCount++;
+          this.lastRateLimitTime = Date.now();
+          console.log(`[Bilibili] 检测到API频率限制错误: ${error.message}`);
+
+          // 解析ttl信息，B站返回的ttl通常过短，需要增加缓冲
+          const ttlMatch = error.message.match(/需要等待 (\d+) 秒/);
+          let waitTime = ttlMatch ? parseInt(ttlMatch[1]) * 1000 : 30000; // 默认30秒
+
+          // 为B站的ttl增加缓冲时间（B站返回的时间过于乐观）
+          if (ttlMatch) {
+            waitTime = Math.max(waitTime * 3, 15000); // 至少3倍时间，最少15秒
+          }
+
+          // 如果连续遇到频率限制，大幅增加等待时间
+          if (this.rateLimitHitCount > 1) {
+            waitTime = waitTime * (1 + this.rateLimitHitCount * 0.5); // 更激进的退避
+            console.log(`[Bilibili] 连续第 ${this.rateLimitHitCount} 次频率限制，延长等待时间到 ${waitTime/1000} 秒`);
+          }
+
+          const waitStartTime = Date.now();
+          console.log(`[Bilibili] 检测到API频率限制，智能等待 ${waitTime/1000} 秒... - 开始等待时间: ${new Date(waitStartTime).toLocaleTimeString()}`);
+          await this.delay(waitTime);
+
+          const waitEndTime = Date.now();
+          console.log(`[Bilibili] 频率限制等待完成 - 结束时间: ${new Date(waitEndTime).toLocaleTimeString()}, 实际等待: ${waitEndTime - waitStartTime}ms`);
+
+          // 对于频率限制，跳过后续的常规延迟，直接进入下一个循环
+          continue;
+        }
+
+        // 对于非频率限制的错误，也需要在UP主间等待，避免连续请求
+        if (i < users.length - 1) {
+          const delayTime = Math.max(this.requestDelay * 1.5, 20000); // 至少20秒间隔
+          const nextUserTime = Date.now() + delayTime;
+          console.log(`[Bilibili] 错误后等待 ${delayTime}ms 后处理下一个UP主，预计开始时间: ${new Date(nextUserTime).toLocaleTimeString()}...`);
+          await this.delay(delayTime);
+        }
+      }
+    }
+
+    const totalUpdateDuration = Date.now() - updateStartTime;
+    console.log(`[Bilibili] 串行更新完成 - 总耗时: ${totalUpdateDuration}ms, 共遇到 ${this.rateLimitHitCount} 次频率限制, 成功处理 ${users.length - this.rateLimitHitCount}/${users.length} 个UP主`);
+  }
+
+  // 判断是否应该因频率限制跳过后续请求
+  private shouldSkipDueToRateLimit(): boolean {
+    // B站API限制极其严格，连续2次频率限制就暂停，时间窗口延长到10分钟
+    if (this.rateLimitHitCount >= 2 && (Date.now() - this.lastRateLimitTime) < 10 * 60 * 1000) {
+      console.log(`[Bilibili] 检测到严重频率限制，暂停更新以避免被封禁 (连续${this.rateLimitHitCount}次)`);
+      return true;
+    }
+    return false;
+  }
+
+  // 直接从网络获取UP主视频（不检查缓存）
+  private async fetchUserVideosFromNetwork(userId: string): Promise<void> {
+    const url = `https://api.bilibili.com/x/space/arc/search?mid=${userId}&ps=50&tid=0&pn=1&order=click`;
+    const requestStartTime = Date.now();
+    console.log(`[Bilibili] 后台网络请求获取UP ${userId} 的视频 - 开始时间: ${new Date(requestStartTime).toLocaleTimeString()}`);
+
+    try {
+      // 获取完整的cookie字符串（和关注列表获取保持一致）
+      const cookies = await this.getCookieString();
+      console.log(`[Bilibili] 视频请求使用的cookies长度:`, cookies.length);
+
+      // 通过background script发送请求，确保有完整的权限和cookies
+      const apiCallStartTime = Date.now();
+      console.log(`[Bilibili] 发起API调用 - 时间: ${new Date(apiCallStartTime).toLocaleTimeString()}`);
+
+      const response = await chrome.runtime.sendMessage({
+        action: "makeRequest",
+        data: {
+          url: url,
+          method: "GET",
+          headers: {
+            Cookie: cookies,
+            Referer: "https://www.bilibili.com",
+            "User-Agent": navigator.userAgent,
+            Accept: "application/json, text/plain, */*",
+            "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
+            "Accept-Encoding": "gzip, deflate, br",
+            Origin: "https://www.bilibili.com",
+            "Sec-Fetch-Dest": "empty",
+            "Sec-Fetch-Mode": "cors",
+            "Sec-Fetch-Site": "same-site",
+          },
+        },
+      });
+
+      const responseTime = Date.now();
+      const apiCallDuration = responseTime - apiCallStartTime;
+      console.log(`[Bilibili] API调用完成 - 响应时间: ${new Date(responseTime).toLocaleTimeString()}, 耗时: ${apiCallDuration}ms`);
+      console.log(`[Bilibili] Background script视频请求响应:`, response);
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const data = JSON.parse(response.responseText);
+
+      // 专门处理B站API的错误码
+      if (data.code === -799) {
+        // 频率限制错误
+        const ttl = data.ttl || 30; // 使用API返回的ttl，默认30秒
+        throw new Error(`API频率限制(code:-799)，需要等待 ${ttl} 秒`);
+      }
+
+      if (data.code !== 0 || !data.data?.list?.vlist) {
+        throw new Error(data.message || "获取视频失败");
+      }
+
+      const videoPool: ContentItem[] = data.data.list.vlist.map((v: any) => ({
+        id: `bilibili_${v.bvid}`,
+        platform: this.platform,
+        platformId: v.bvid,
+        author: {
+          id: `bilibili_${v.mid}`,
+          platform: this.platform,
+          platformId: v.mid,
+          username: v.author,
+          displayName: v.author,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        },
+        title: v.title,
+        description: v.description,
+        thumbnail: v.pic?.startsWith("http://")
+          ? v.pic.replace("http://", "https://")
+          : v.pic,
+        url: `https://www.bilibili.com/video/${v.bvid}`,
+        publishedAt: v.created * 1000,
+        metrics: {
+          views: v.play,
+          likes: v.like,
+          comments: v.video_review || v.danmaku,
+        },
+        duration: this.parseDuration(v.length),
+        type: "video",
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      }));
+
+      // 缓存视频池
+      const cacheKey = `onlyfocus_bilibili_videos_${userId}`;
+      await StorageManager.setCache(cacheKey, videoPool, CACHE_CONFIG.CONTENT);
+
+      const totalDuration = Date.now() - requestStartTime;
+      console.log(`[Bilibili] 后台更新完成UP ${userId} 的视频池: ${videoPool.length} 个视频 - 总耗时: ${totalDuration}ms`);
+    } catch (error) {
+      const totalDuration = Date.now() - requestStartTime;
+      console.error(`[Bilibili] 后台网络请求UP ${userId} 视频失败 - 耗时: ${totalDuration}ms:`, error);
+      throw error;
+    }
   }
 
   // 检测内容区域
@@ -709,6 +1015,50 @@ export class BilibiliAdapter implements PlatformAdapter {
       console.error("[Bilibili] 替换卡片内容失败:", error);
       throw error;
     }
+  }
+
+  // 加载平台特定配置
+  private async loadRequestSettings(): Promise<void> {
+    try {
+      const config = await configManager.getConfig();
+      const platformConfig = config.platformSettings[this.platform];
+
+      if (!platformConfig) {
+        console.warn(`[Bilibili] 未找到平台配置，使用默认安全设置`);
+        this.setDefaultSettings();
+        return;
+      }
+
+      // 使用平台特定配置
+      this.requestDelay = platformConfig.requestDelay;
+      this.concurrentRequests = platformConfig.concurrentRequests;
+      this.concurrentLimit = platformConfig.concurrentLimit;
+
+      // B站安全模式：如果配置不安全，强制使用安全设置
+      if (platformConfig.concurrentRequests || platformConfig.concurrentLimit > 1) {
+        console.warn(`[Bilibili] ⚠️ 检测到不安全的并发配置，已强制启用安全模式`);
+        this.concurrentRequests = false;
+        this.concurrentLimit = 1;
+      }
+
+      console.log(`[Bilibili] 平台配置加载完成: 延迟=${this.requestDelay}ms, 并发=${this.concurrentRequests}, 限制=${this.concurrentLimit}`);
+
+      // 显示自定义设置
+      if (platformConfig.customSettings) {
+        console.log(`[Bilibili] 自定义设置:`, platformConfig.customSettings);
+      }
+
+    } catch (error) {
+      console.warn(`[Bilibili] 加载平台配置失败，使用安全默认值:`, error);
+      this.setDefaultSettings();
+    }
+  }
+
+  // 设置默认安全配置
+  private setDefaultSettings(): void {
+    this.requestDelay = 5000;
+    this.concurrentRequests = false;
+    this.concurrentLimit = 1;
   }
 
   // 延迟工具

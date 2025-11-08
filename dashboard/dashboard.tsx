@@ -18,6 +18,12 @@ interface DashboardState {
   selectedPlatform: Platform | 'all';
   selectedView: 'users' | 'stats';
   searchQuery: string;
+
+  // 排序状态
+  userSortBy: 'name' | 'platform' | 'cacheCount' | 'updatedAt';
+  userSortOrder: 'asc' | 'desc';
+  contentSortBy: 'title' | 'publishedAt' | 'views' | 'likes' | 'duration';
+  contentSortOrder: 'asc' | 'desc';
 }
 
 // 主面板组件
@@ -32,6 +38,10 @@ function Dashboard() {
     selectedPlatform: 'all',
     selectedView: 'users',
     searchQuery: '',
+    userSortBy: 'updatedAt',
+    userSortOrder: 'desc',
+    contentSortBy: 'publishedAt',
+    contentSortOrder: 'desc',
   });
 
   // 初始化数据
@@ -113,6 +123,17 @@ function Dashboard() {
       await refreshData();
     } catch (error) {
       console.error('清除缓存失败:', error);
+    }
+  };
+
+  // 删除用户
+  const deleteUser = async (userId: string, platform: Platform, userName: string) => {
+    try {
+      await ChromeExtensionApi.sendMessage('deleteUser', { userId, platform });
+      console.log(`用户 ${userName} 删除成功`);
+      await refreshData(); // 刷新数据
+    } catch (error) {
+      console.error('删除用户失败:', error);
     }
   };
 
@@ -209,7 +230,14 @@ function Dashboard() {
 
       <div className="dashboard-content">
         {state.selectedView === 'users' && (
-          <UsersView users={filteredUsers} onClearCache={clearCache} />
+          <UsersView
+            users={filteredUsers}
+            onClearCache={clearCache}
+            sortBy={state.userSortBy}
+            sortOrder={state.userSortOrder}
+            onSortChange={(sortBy, sortOrder) => setState(prev => ({ ...prev, userSortBy: sortBy, userSortOrder: sortOrder }))}
+            onDeleteUser={deleteUser}
+          />
         )}
         {state.selectedView === 'stats' && (
           <StatsView
@@ -225,14 +253,99 @@ function Dashboard() {
 }
 
 // 用户视图组件
-function UsersView({ users, onClearCache }: {
+function UsersView({ users, onClearCache, sortBy, sortOrder, onSortChange, onDeleteUser }: {
   users: FollowedUser[];
   onClearCache: (platform?: Platform) => void;
+  sortBy: string;
+  sortOrder: 'asc' | 'desc';
+  onSortChange: (sortBy: string, sortOrder: 'asc' | 'desc') => void;
+  onDeleteUser: (userId: string, platform: Platform, userName: string) => void;
 }) {
   const safeUsers = users || [];
   const [selectedUser, setSelectedUser] = useState<FollowedUser | null>(null);
   const [userContent, setUserContent] = useState<ContentItem[]>([]);
   const [userCacheCounts, setUserCacheCounts] = useState<Map<string, number>>(new Map());
+  const [contentSearchQuery, setContentSearchQuery] = useState('');
+  const [contentSortBy, setContentSortBy] = useState('publishedAt');
+  const [contentSortOrder, setContentSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [deleteConfirmUser, setDeleteConfirmUser] = useState<{userId: string, platform: Platform, userName: string} | null>(null);
+
+  // 排序和过滤辅助函数
+  const sortUsers = (users: FollowedUser[], sortBy: string, sortOrder: 'asc' | 'desc', cacheCounts: Map<string, number>): FollowedUser[] => {
+    return [...users].sort((a, b) => {
+      let aValue: any;
+      let bValue: any;
+
+      switch (sortBy) {
+        case 'name':
+          aValue = (a.displayName || '').toLowerCase();
+          bValue = (b.displayName || '').toLowerCase();
+          break;
+        case 'platform':
+          aValue = a.platform;
+          bValue = b.platform;
+          break;
+        case 'cacheCount':
+          aValue = cacheCounts.get(a.id) || 0;
+          bValue = cacheCounts.get(b.id) || 0;
+          break;
+        case 'updatedAt':
+          aValue = a.updatedAt || 0;
+          bValue = b.updatedAt || 0;
+          break;
+        default:
+          return 0;
+      }
+
+      if (aValue < bValue) {
+        return sortOrder === 'asc' ? -1 : 1;
+      }
+      if (aValue > bValue) {
+        return sortOrder === 'asc' ? 1 : -1;
+      }
+      return 0;
+    });
+  };
+
+  const sortContent = (content: ContentItem[], sortBy: string, sortOrder: 'asc' | 'desc'): ContentItem[] => {
+    return [...content].sort((a, b) => {
+      let aValue: any;
+      let bValue: any;
+
+      switch (sortBy) {
+        case 'title':
+          aValue = (a.title || '').toLowerCase();
+          bValue = (b.title || '').toLowerCase();
+          break;
+        case 'publishedAt':
+          aValue = a.publishedAt || 0;
+          bValue = b.publishedAt || 0;
+          break;
+        case 'views':
+          aValue = a.metrics?.views || 0;
+          bValue = b.metrics?.views || 0;
+          break;
+        case 'likes':
+          aValue = a.metrics?.likes || 0;
+          bValue = b.metrics?.likes || 0;
+          break;
+        case 'duration':
+          aValue = a.duration || 0;
+          bValue = b.duration || 0;
+          break;
+        default:
+          return 0;
+      }
+
+      if (aValue < bValue) {
+        return sortOrder === 'asc' ? -1 : 1;
+      }
+      if (aValue > bValue) {
+        return sortOrder === 'asc' ? 1 : -1;
+      }
+      return 0;
+    });
+  };
 
   // 获取用户的缓存数量
   const getUserCacheCount = async (user: FollowedUser): Promise<number> => {
@@ -267,6 +380,20 @@ function UsersView({ users, onClearCache }: {
       loadCacheCounts();
     }
   }, [safeUsers]);
+
+  // 应用排序到用户列表
+  const sortedUsers = sortUsers(safeUsers, sortBy, sortOrder, userCacheCounts);
+
+  // 过滤内容列表
+  const filteredContent = userContent.filter(item =>
+    item &&
+    (!contentSearchQuery ||
+     (item.title && item.title.toLowerCase().includes(contentSearchQuery.toLowerCase())) ||
+     (item.description && item.description.toLowerCase().includes(contentSearchQuery.toLowerCase())))
+  );
+
+  // 应用排序到内容列表
+  const sortedContent = sortContent(filteredContent, contentSortBy, contentSortOrder);
 
   if (safeUsers.length === 0) {
     return (
@@ -308,6 +435,28 @@ function UsersView({ users, onClearCache }: {
     setUserContent([]);
   };
 
+  // 处理删除用户
+  const handleDeleteUser = (user: FollowedUser) => {
+    setDeleteConfirmUser({
+      userId: user.id,
+      platform: user.platform,
+      userName: user.displayName || user.username || '未知用户'
+    });
+  };
+
+  // 确认删除用户
+  const confirmDeleteUser = () => {
+    if (deleteConfirmUser) {
+      onDeleteUser(deleteConfirmUser.userId, deleteConfirmUser.platform, deleteConfirmUser.userName);
+      setDeleteConfirmUser(null);
+    }
+  };
+
+  // 取消删除
+  const cancelDeleteUser = () => {
+    setDeleteConfirmUser(null);
+  };
+
   // 显示单个用户的详细内容
   if (selectedUser) {
     return (
@@ -335,13 +484,44 @@ function UsersView({ users, onClearCache }: {
           </div>
         </div>
 
+        <div className="content-controls">
+          <div className="content-search">
+            <input
+              type="text"
+              placeholder="搜索内容..."
+              value={contentSearchQuery}
+              onChange={(e) => setContentSearchQuery(e.target.value)}
+              className="content-search-input"
+            />
+          </div>
+          <div className="content-sort">
+            <select
+              value={contentSortBy}
+              onChange={(e) => setContentSortBy(e.target.value)}
+              className="content-sort-select"
+            >
+              <option value="publishedAt">发布时间</option>
+              <option value="title">标题</option>
+              <option value="views">观看次数</option>
+              <option value="likes">点赞数</option>
+              <option value="duration">时长</option>
+            </select>
+            <button
+              onClick={() => setContentSortOrder(contentSortOrder === 'asc' ? 'desc' : 'asc')}
+              className="content-sort-order"
+            >
+              {contentSortOrder === 'asc' ? '↑' : '↓'}
+            </button>
+          </div>
+        </div>
+
         <div className="user-content-list">
-          {userContent.length === 0 ? (
+          {sortedContent.length === 0 ? (
             <div className="empty-state">
-              <p>该用户暂无缓存内容</p>
+              <p>{contentSearchQuery ? '未找到匹配的内容' : '该用户暂无缓存内容'}</p>
             </div>
           ) : (
-            userContent.map(item => (
+            sortedContent.map(item => (
               <div key={item.id} className="content-card">
                 <div className="content-thumbnail">
                   {item.thumbnail && (
@@ -395,21 +575,41 @@ function UsersView({ users, onClearCache }: {
     <div className="users-view">
       <div className="view-header">
         <h3>关注用户</h3>
-        <div className="view-actions">
-          {Array.from(new Set(safeUsers.map(u => u.platform))).map(platform => (
-            <button
-              key={platform}
-              onClick={() => onClearCache(platform)}
-              className="clear-cache-btn"
+        <div className="view-header-controls">
+          <div className="user-sort">
+            <select
+              value={sortBy}
+              onChange={(e) => onSortChange(e.target.value, sortOrder)}
+              className="user-sort-select"
             >
-              清除 {platform} 缓存
+              <option value="updatedAt">更新时间</option>
+              <option value="name">名称</option>
+              <option value="platform">平台</option>
+              <option value="cacheCount">缓存数量</option>
+            </select>
+            <button
+              onClick={() => onSortChange(sortBy, sortOrder === 'asc' ? 'desc' : 'asc')}
+              className="user-sort-order"
+            >
+              {sortOrder === 'asc' ? '↑' : '↓'}
             </button>
-          ))}
+          </div>
+          <div className="view-actions">
+            {Array.from(new Set(safeUsers.map(u => u.platform))).map(platform => (
+              <button
+                key={platform}
+                onClick={() => onClearCache(platform)}
+                className="clear-cache-btn"
+              >
+                清除 {platform} 缓存
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
       <div className="users-grid">
-        {safeUsers.map(user => (
+        {sortedUsers.map(user => (
           <div key={user.id} className="user-card clickable" onClick={() => handleUserClick(user)}>
             <div className="user-avatar">
               {user.avatar ? (
@@ -444,10 +644,69 @@ function UsersView({ users, onClearCache }: {
               >
                 查看主页
               </a>
+              <button
+                className="delete-user-btn"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleDeleteUser(user);
+                }}
+                title="删除该用户及其所有缓存数据"
+              >
+                🗑️
+              </button>
             </div>
           </div>
         ))}
       </div>
+
+      {/* 删除确认对话框 */}
+      {deleteConfirmUser && (
+        <div className="confirm-dialog-overlay">
+          <div className="confirm-dialog">
+            <div className="confirm-dialog-header">
+              <h3>确认删除用户</h3>
+              <button
+                className="close-btn"
+                onClick={cancelDeleteUser}
+              >
+                ✕
+              </button>
+            </div>
+            <div className="confirm-dialog-body">
+              <p>您确定要删除以下用户吗？</p>
+              <div className="user-info-summary">
+                <strong>{deleteConfirmUser.userName}</strong>
+                <span className="platform-tag">{deleteConfirmUser.platform}</span>
+              </div>
+              <p className="warning-text">
+                ⚠️ 此操作将删除该用户的所有缓存数据，包括：
+              </p>
+              <ul className="delete-list">
+                <li>该用户的关注关系</li>
+                <li>该用户的所有视频内容缓存</li>
+                <li>相关的统计信息</li>
+              </ul>
+              <p className="irreversible-warning">
+                此操作 <strong>不可恢复</strong>，请谨慎操作！
+              </p>
+            </div>
+            <div className="confirm-dialog-actions">
+              <button
+                className="cancel-btn"
+                onClick={cancelDeleteUser}
+              >
+                取消
+              </button>
+              <button
+                className="delete-btn"
+                onClick={confirmDeleteUser}
+              >
+                确认删除
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -472,15 +731,15 @@ function StatsView({ config, engineStatus, cacheStats, onClearCache }: {
             </div>
             <div className="stat-card">
               <h4>最大内容数量</h4>
-              <p>{config.contentSettings.maxItems}</p>
+              <p>{config.globalSettings?.maxItemsPerPlatform || 20}</p>
             </div>
             <div className="stat-card">
               <h4>刷新间隔</h4>
-              <p>{config.contentSettings.refreshInterval / 60000} 分钟</p>
+              <p>{config.globalSettings?.refreshInterval ? config.globalSettings.refreshInterval / 60000 : 30} 分钟</p>
             </div>
             <div className="stat-card">
               <h4>内容洗牌</h4>
-              <p>{config.contentSettings.shuffleEnabled ? '启用' : '禁用'}</p>
+              <p>{config.globalSettings?.shuffleEnabled ? '启用' : '禁用'}</p>
             </div>
             <div className="stat-card">
               <h4>显示通知</h4>

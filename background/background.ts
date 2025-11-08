@@ -283,6 +283,38 @@ class BackgroundService {
       }
     });
 
+    // 删除用户
+    ChromeExtensionApi.onMessage('deleteUser', async (data) => {
+      try {
+        const { userId, platform } = data;
+        if (!userId) {
+          throw new Error('用户ID是必需的');
+        }
+
+        await contentEngine.deleteUser(userId, platform);
+        return { success: true, userId };
+      } catch (error) {
+        this.log(`删除用户失败: ${error}`, 'error');
+        throw error;
+      }
+    });
+
+    // 获取用户缓存信息
+    ChromeExtensionApi.onMessage('getUserCacheInfo', async (data) => {
+      try {
+        const { userId } = data;
+        if (!userId) {
+          throw new Error('用户ID是必需的');
+        }
+
+        const cacheInfo = await contentEngine.getUserCacheInfo(userId);
+        return cacheInfo;
+      } catch (error) {
+        this.log(`获取用户缓存信息失败: ${error}`, 'error');
+        throw error;
+      }
+    });
+
     // 打开选项页
     ChromeExtensionApi.onMessage('openOptions', async () => {
       try {

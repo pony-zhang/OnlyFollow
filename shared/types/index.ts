@@ -8,15 +8,25 @@ export interface BaseModel {
 // 平台类型
 export type Platform = 'bilibili' | 'youtube' | 'twitter' | 'instagram';
 
+// 平台特定配置
+export interface PlatformConfig {
+  enabled: boolean;
+  requestDelay: number; // 请求间隔（毫秒）
+  concurrentRequests: boolean; // 是否启用并发请求
+  concurrentLimit: number; // 并发请求数量限制
+  maxItems: number; // 最大内容数量
+  customSettings?: Record<string, any>; // 平台自定义设置
+}
+
 // 用户配置
 export interface UserConfig {
   enabledPlatforms: Platform[];
-  contentSettings: {
-    maxItems: number;
-    refreshInterval: number;
-    shuffleEnabled: boolean;
-    requestDelay: number; // 请求间隔（毫秒）
+  globalSettings: {
+    refreshInterval: number; // 全局刷新间隔
+    shuffleEnabled: boolean; // 内容洗牌
+    maxItemsPerPlatform: number; // 每个平台最大内容数
   };
+  platformSettings: Record<Platform, PlatformConfig>; // 每个平台的独立配置
   uiSettings: {
     showNotifications: boolean;
     theme: 'light' | 'dark' | 'auto';
