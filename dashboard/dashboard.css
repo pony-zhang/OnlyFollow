@@ -9,6 +9,107 @@
   padding: 0;
 }
 
+/* 用户详情视图样式 */
+.user-detail-view {
+  background: #ffffff;
+  border-radius: 8px;
+  margin: 16px;
+  overflow: hidden;
+}
+
+.user-detail-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 20px;
+  background: #f8f9fa;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.back-btn {
+  padding: 8px 16px;
+  border: 1px solid #dadce0;
+  background: #ffffff;
+  color: #333333;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.2s;
+}
+
+.back-btn:hover {
+  background: #f8f9fa;
+  border-color: #c0c4cc;
+}
+
+.user-detail-info {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex: 1;
+}
+
+.user-detail-text h3 {
+  margin: 0 0 8px 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: #333333;
+}
+
+.user-detail-text p {
+  margin: 0 0 4px 0;
+  color: #666666;
+  font-size: 14px;
+}
+
+.content-count {
+  color: #1a73e8 !important;
+  font-weight: 500;
+}
+
+.user-content-list {
+  padding: 20px;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+/* 可点击的用户卡片 */
+.user-card.clickable {
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.user-card.clickable:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.user-cache-indicator {
+  margin-top: 8px;
+}
+
+.cache-badge {
+  display: inline-block;
+  padding: 4px 8px;
+  background: #e8f0fe;
+  color: #1a73e8;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.content-duration {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  background: rgba(0, 0, 0, 0.8);
+  color: white;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
 /* 头部样式 */
 .dashboard-header {
   display: flex;
