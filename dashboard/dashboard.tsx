@@ -49,13 +49,26 @@ function Dashboard() {
       await waitForBackgroundReady();
 
       // 并行获取所有数据
-      const [config, followedUsers, cachedContent, engineStatus, cacheStats] = await Promise.all([
+      const results = await Promise.allSettled([
         ChromeExtensionApi.sendMessage('getConfig'),
-        ChromeExtensionApi.sendMessage('getFollowedUsers').catch(() => []),
-        ChromeExtensionApi.sendMessage('getCachedContent').catch(() => []),
-        ChromeExtensionApi.sendMessage('getEngineStatus').catch(() => null),
-        ChromeExtensionApi.sendMessage('getCacheStats').catch(() => null),
+        ChromeExtensionApi.sendMessage('getFollowedUsers'),
+        ChromeExtensionApi.sendMessage('getCachedContent'),
+        ChromeExtensionApi.sendMessage('getEngineStatus'),
+        ChromeExtensionApi.sendMessage('getCacheStats'),
       ]);
+
+      const config = results[0].status === 'fulfilled' ? results[0].value : null;
+      const followedUsers = results[1].status === 'fulfilled' && Array.isArray(results[1].value) ? results[1].value : [];
+      const cachedContent = results[2].status === 'fulfilled' && Array.isArray(results[2].value) ? results[2].value : [];
+      const engineStatus = results[3].status === 'fulfilled' ? results[3].value : null;
+      const cacheStats = results[4].status === 'fulfilled' ? results[4].value : null;
+
+      console.log('[Dashboard] 获取到的数据:', {
+        followedUsersCount: followedUsers.length,
+        cachedContentCount: cachedContent.length,
+        engineStatus,
+        cacheStats
+      });
 
       setState(prev => ({
         ...prev,
@@ -109,22 +122,22 @@ function Dashboard() {
     }
   };
 
-  // 过滤数据
-  const filteredUsers = (state.followedUsers || []).filter(user =>
-    state.selectedPlatform === 'all' || user.platform === state.selectedPlatform
-  ).filter(user =>
-    !state.searchQuery ||
-    (user.displayName || '').toLowerCase().includes(state.searchQuery.toLowerCase()) ||
-    (user.username || '').toLowerCase().includes(state.searchQuery.toLowerCase())
-  );
+  // 过滤数据 - 添加完整的防御性检查
+  const filteredUsers = Array.isArray(state.followedUsers) ? state.followedUsers.filter(user =>
+    user &&
+    (state.selectedPlatform === 'all' || user.platform === state.selectedPlatform) &&
+    (!state.searchQuery ||
+     (user.displayName && user.displayName.toLowerCase().includes(state.searchQuery.toLowerCase())) ||
+     (user.username && user.username.toLowerCase().includes(state.searchQuery.toLowerCase())))
+  ) : [];
 
-  const filteredContent = (state.cachedContent || []).filter(content =>
-    state.selectedPlatform === 'all' || content.platform === state.selectedPlatform
-  ).filter(content =>
-    !state.searchQuery ||
-    content.title.toLowerCase().includes(state.searchQuery.toLowerCase()) ||
-    (content.author?.displayName || '').toLowerCase().includes(state.searchQuery.toLowerCase())
-  );
+  const filteredContent = Array.isArray(state.cachedContent) ? state.cachedContent.filter(content =>
+    content &&
+    (state.selectedPlatform === 'all' || content.platform === state.selectedPlatform) &&
+    (!state.searchQuery ||
+     (content.title && content.title.toLowerCase().includes(state.searchQuery.toLowerCase())) ||
+     (content.author && content.author.displayName && content.author.displayName.toLowerCase().includes(state.searchQuery.toLowerCase())))
+  ) : [];
 
   // 渲染加载状态
   if (state.isLoading) {
@@ -239,7 +252,8 @@ function UsersView({ users, onClearCache }: {
   users: FollowedUser[];
   onClearCache: (platform?: Platform) => void;
 }) {
-  if (users.length === 0) {
+  const safeUsers = users || [];
+  if (safeUsers.length === 0) {
     return (
       <div className="empty-state">
         <p>暂无关注用户数据</p>
@@ -252,7 +266,7 @@ function UsersView({ users, onClearCache }: {
       <div className="view-header">
         <h3>关注用户</h3>
         <div className="view-actions">
-          {Array.from(new Set((users || []).map(u => u.platform))).map(platform => (
+          {Array.from(new Set(safeUsers.map(u => u.platform))).map(platform => (
             <button
               key={platform}
               onClick={() => onClearCache(platform)}
@@ -265,7 +279,7 @@ function UsersView({ users, onClearCache }: {
       </div>
 
       <div className="users-grid">
-        {users.map(user => (
+        {safeUsers.map(user => (
           <div key={user.id} className="user-card">
             <div className="user-avatar">
               {user.avatar ? (
@@ -287,7 +301,7 @@ function UsersView({ users, onClearCache }: {
                 href={`https://www.${user.platform === 'bilibili' ? 'bilibili.com' :
                                    user.platform === 'youtube' ? 'youtube.com' :
                                    user.platform === 'twitter' ? 'twitter.com' :
-                                   'instagram.com'}/${user.platformId}`}
+                                   'instagram.com'}/${user.platformId || ''}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="user-link"
@@ -307,7 +321,8 @@ function ContentView({ content, onClearCache }: {
   content: ContentItem[];
   onClearCache: (platform?: Platform) => void;
 }) {
-  if (content.length === 0) {
+  const safeContent = content || [];
+  if (safeContent.length === 0) {
     return (
       <div className="empty-state">
         <p>暂无缓存内容</p>
@@ -320,7 +335,7 @@ function ContentView({ content, onClearCache }: {
       <div className="view-header">
         <h3>缓存内容</h3>
         <div className="view-actions">
-          {Array.from(new Set((content || []).map(c => c.platform))).map(platform => (
+          {Array.from(new Set(safeContent.map(c => c.platform))).map(platform => (
             <button
               key={platform}
               onClick={() => onClearCache(platform)}
@@ -333,25 +348,25 @@ function ContentView({ content, onClearCache }: {
       </div>
 
       <div className="content-list">
-        {content.map(item => (
+        {safeContent.map(item => (
           <div key={item.id} className="content-card">
             <div className="content-thumbnail">
               {item.thumbnail && (
-                <img src={item.thumbnail} alt={item.title} />
+                <img src={item.thumbnail} alt={item.title || '内容'} />
               )}
-              <div className="content-type">{item.type}</div>
+              <div className="content-type">{item.type || 'unknown'}</div>
             </div>
             <div className="content-info">
               <h4 className="content-title">
-                <a href={item.url} target="_blank" rel="noopener noreferrer">
-                  {item.title}
+                <a href={item.url || '#'} target="_blank" rel="noopener noreferrer">
+                  {item.title || '无标题'}
                 </a>
               </h4>
               <p className="content-author">
                 作者: {item.author?.displayName || '未知'}
               </p>
               <p className="content-time">
-                发布时间: {DateFormatter.formatAbsolute(item.publishedAt)}
+                发布时间: {item.publishedAt ? DateFormatter.formatAbsolute(item.publishedAt) : '未知'}
               </p>
               {item.metrics && (
                 <div className="content-metrics">
@@ -374,7 +389,7 @@ function ContentView({ content, onClearCache }: {
               )}
             </div>
             <div className="content-platform">
-              {item.platform}
+              {item.platform || 'unknown'}
             </div>
           </div>
         ))}
@@ -398,7 +413,7 @@ function StatsView({ config, engineStatus, cacheStats, onClearCache }: {
           <div className="stats-grid">
             <div className="stat-card">
               <h4>启用的平台</h4>
-              <p>{config.enabledPlatforms.join(', ')}</p>
+              <p>{(config.enabledPlatforms || []).join(', ')}</p>
             </div>
             <div className="stat-card">
               <h4>最大内容数量</h4>

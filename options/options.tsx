@@ -165,6 +165,21 @@ function OptionsPage() {
             />
           </div>
           <div className="form-group">
+            <label htmlFor="requestDelay">请求间隔（毫秒）</label>
+            <input
+              id="requestDelay"
+              type="number"
+              min="500"
+              max="10000"
+              step="100"
+              value={config.contentSettings.requestDelay}
+              onChange={(e) => updateContentSettings({
+                requestDelay: parseInt(e.target.value) || 2000
+              })}
+            />
+            <small>设置API请求之间的间隔时间，避免触发频率限制（建议2000-5000毫秒）</small>
+          </div>
+          <div className="form-group">
             <label className="checkbox-label">
               <input
                 type="checkbox"

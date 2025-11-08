@@ -15,6 +15,7 @@ export interface UserConfig {
     maxItems: number;
     refreshInterval: number;
     shuffleEnabled: boolean;
+    requestDelay: number; // 请求间隔（毫秒）
   };
   uiSettings: {
     showNotifications: boolean;

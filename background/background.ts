@@ -54,6 +54,84 @@ class BackgroundService {
       };
     });
 
+    // 获取cookies
+    ChromeExtensionApi.onMessage('getCookies', async (requestData) => {
+      try {
+        console.log('[Background] 收到getCookies请求:', {
+          requestData,
+          type: typeof requestData,
+          hasDomain: requestData && typeof requestData === 'object' && 'domain' in requestData
+        });
+
+        // 防御性检查
+        if (!requestData || typeof requestData !== 'object') {
+          console.error('[Background] 请求数据无效:', requestData);
+          throw new Error('Invalid request data');
+        }
+
+        const domain = requestData.domain;
+        if (!domain) {
+          console.error('[Background] 缺少domain参数:', requestData);
+          throw new Error('Domain parameter is required');
+        }
+
+        console.log(`[Background] 获取 ${domain} 的cookies`);
+
+        if (!chrome.cookies) {
+          console.error('[Background] Cookie API not available');
+          throw new Error('Cookie API not available');
+        }
+
+        const cookies = await chrome.cookies.getAll({
+          domain: domain
+        });
+
+        console.log(`[Background] 获取到 ${cookies.length} 个cookies`, cookies);
+
+        // 确保返回数组
+        if (!Array.isArray(cookies)) {
+          console.warn('[Background] chrome.cookies.getAll返回的不是数组:', cookies);
+          return [];
+        }
+
+        return cookies;
+      } catch (error) {
+        console.error(`[Background] 获取cookies失败:`, error);
+        this.log(`获取cookies失败: ${error}`, 'error');
+        throw error;
+      }
+    });
+
+    // 发起HTTP请求
+    ChromeExtensionApi.onMessage('makeRequest', async (requestData) => {
+      try {
+        console.log('[Background] 发起请求:', requestData.url);
+
+        const response = await fetch(requestData.url, {
+          method: requestData.method || 'GET',
+          headers: requestData.headers || {}
+        });
+
+        const responseText = await response.text();
+
+        console.log('[Background] 请求完成:', {
+          status: response.status,
+          statusText: response.statusText,
+          ok: response.ok
+        });
+
+        return {
+          status: response.status,
+          statusText: response.statusText,
+          ok: response.ok,
+          responseText: responseText
+        };
+      } catch (error) {
+        console.error('[Background] 请求失败:', error);
+        throw error;
+      }
+    });
+
     // 获取配置
     ChromeExtensionApi.onMessage('getConfig', async () => {
       try {

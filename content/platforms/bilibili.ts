@@ -13,7 +13,7 @@ export class BilibiliAdapter implements PlatformAdapter {
   private readonly videosPerUp = 2;
   private readonly totalVideosNeeded = 20;
   private readonly minUpsNeeded = 15;
-  private readonly requestDelay = 1500;
+  private requestDelay = 2000; // 默认2秒，将从配置中读取
 
   // 检查是否在B站页面
   isActive(): boolean {
@@ -21,45 +21,190 @@ export class BilibiliAdapter implements PlatformAdapter {
   }
 
   // 检查是否登录
-  private isLogin(): boolean {
-    const cookies = document.cookie.split(';');
-    const hasSessionData = cookies.some(cookie =>
-      cookie.trim().startsWith('SESSDATA=') || cookie.trim().startsWith('DedeUserID=')
-    );
+  private async isLogin(): Promise<boolean> {
+    console.log('[Bilibili] ===== 开始登录检测 =====');
 
-    const hasUserInfo = !!(
-      document.querySelector('.nav-user-info') ||
-      document.querySelector('.user-con') ||
-      document.querySelector('.header-avatar-wrap')
-    );
+    try {
+      console.log('[Bilibili] 步骤1: 检查document.cookie');
 
-    return hasSessionData || hasUserInfo;
+      // 1. 检查document.cookie
+      const docCookies = document.cookie;
+      console.log('[Bilibili] document.cookie包含:', docCookies ? '有内容' : '无内容');
+      console.log('[Bilibili] document.cookie详细:', docCookies);
+
+      if (docCookies && (docCookies.includes('SESSDATA') || docCookies.includes('DedeUserID'))) {
+        console.log('[Bilibili] ✅ document.cookie检测到登录状态');
+        return true;
+      }
+
+      console.log('[Bilibili] 步骤2: 检查页面元素');
+
+      // 2. 检查页面元素
+      const hasUserInfo = !!(
+        document.querySelector('.nav-user-info') ||
+        document.querySelector('.user-con') ||
+        document.querySelector('.header-avatar-wrap') ||
+        document.querySelector('.header-entry-wrap') ||
+        document.querySelector('.user-avatar')
+      );
+
+      console.log('[Bilibili] 页面元素检测结果:', hasUserInfo);
+      if (hasUserInfo) {
+        console.log('[Bilibili] ✅ 页面元素检测到登录状态');
+        return true;
+      }
+
+      console.log('[Bilibili] 步骤3: 检查Chrome API获取的cookies');
+
+      // 3. 检查Chrome API获取的cookies
+      const cookies = await this.getCookies();
+      console.log('[Bilibili] Chrome API获取到cookies数量:', cookies.length);
+
+      const hasSessData = cookies.some(cookie => cookie.name === 'SESSDATA');
+      const hasDedeUserId = cookies.some(cookie => cookie.name === 'DedeUserID');
+      const hasSessionData = hasSessData || hasDedeUserId;
+
+      console.log('[Bilibili] Chrome API检测结果:', {
+        hasSessData,
+        hasDedeUserId,
+        hasSessionData,
+        cookieNames: cookies.map(c => c.name)
+      });
+
+      if (hasSessionData) {
+        console.log('[Bilibili] ✅ Chrome API检测到登录状态');
+      } else {
+        console.log('[Bilibili] ❌ Chrome API未检测到登录状态');
+      }
+
+      console.log('[Bilibili] ===== 登录检测完成，结果:', hasSessionData, ' =====');
+      return hasSessionData;
+    } catch (error) {
+      console.error('[Bilibili] ❌ 检查登录状态失败:', error);
+      console.log('[Bilibili] ===== 登录检测异常，返回false =====');
+      return false;
+    }
   }
 
   // 获取用户ID
-  private getUserId(): string | null {
-    // 尝试从全局变量获取
-    const globalState = (window as any).__INITIAL_STATE__;
-    if (globalState?.nav?.userInfo?.mid) {
-      return globalState.nav.userInfo.mid;
-    }
-
-    // 尝试从cookie获取
-    const cookies = document.cookie.split(';');
-    for (const cookie of cookies) {
-      const trimmed = cookie.trim();
-      if (trimmed.startsWith('DedeUserID=')) {
-        return trimmed.substring('DedeUserID='.length);
+  private async getUserId(): Promise<string | null> {
+    try {
+      // 1. 尝试从全局变量获取
+      const globalState = (window as any).__INITIAL_STATE__;
+      if (globalState?.nav?.userInfo?.mid) {
+        return globalState.nav.userInfo.mid;
       }
-    }
 
-    return null;
+      // 2. 尝试从document.cookie获取
+      const cookies = document.cookie.split(';');
+      for (const cookie of cookies) {
+        const trimmed = cookie.trim();
+        if (trimmed.startsWith('DedeUserID=')) {
+          return trimmed.substring('DedeUserID='.length);
+        }
+      }
+
+      // 3. 尝试通过Chrome API获取cookie
+      const chromeCookies = await this.getCookies();
+      const dedeUserIdCookie = chromeCookies.find(cookie => cookie.name === 'DedeUserID');
+      if (dedeUserIdCookie) {
+        return dedeUserIdCookie.value;
+      }
+
+      return null;
+    } catch (error) {
+      console.warn('[Bilibili] 获取用户ID失败:', error);
+      return null;
+    }
+  }
+
+  // 获取B站相关cookies
+  private async getCookies(): Promise<chrome.cookies.Cookie[]> {
+    try {
+      // 尝试多个domain来获取所有cookies
+      const domains = ['bilibili.com', '.bilibili.com', 'www.bilibili.com'];
+      let allCookies: chrome.cookies.Cookie[] = [];
+
+      for (const domain of domains) {
+        const message = {
+          action: 'getCookies',
+          data: {
+            domain: domain
+          }
+        };
+
+        console.log(`[Bilibili] 尝试获取domain ${domain} 的cookies:`);
+
+        const response = await chrome.runtime.sendMessage(message);
+
+        if (Array.isArray(response)) {
+          console.log(`[Bilibili] domain ${domain} 获取到 ${response.length} 个cookies`);
+          allCookies = allCookies.concat(response);
+        }
+      }
+
+      // 去重（基于cookie name）
+      const uniqueCookies = allCookies.filter((cookie, index, self) =>
+        index === self.findIndex(c => c.name === cookie.name)
+      );
+
+      console.log('[Bilibili] 总共获取到cookies:', uniqueCookies.length);
+      console.log('[Bilibili] Cookie名称列表:', uniqueCookies.map(c => c.name));
+
+      return uniqueCookies;
+    } catch (error) {
+      console.error('[Bilibili] 获取cookies失败:', error);
+      return [];
+    }
+  }
+
+  // 获取cookie字符串
+  private async getCookieString(): Promise<string> {
+    try {
+      console.log('[Bilibili] ===== getCookieString开始 =====');
+
+      // 完全按照bilibili_example.md：直接使用document.cookie
+      console.log('[Bilibili] 直接使用document.cookie (完全仿照bilibili_example.md):');
+      console.log('[Bilibili] document.cookie长度:', document.cookie.length);
+
+      return document.cookie;
+    } catch (error) {
+      console.error('[Bilibili] 获取cookie字符串失败:', error);
+      return document.cookie || '';
+    }
   }
 
   // 获取关注列表
   async getFollowedUsers(): Promise<FollowedUser[]> {
-    const uid = this.getUserId();
+    console.log('[Bilibili] ===== getFollowedUsers开始 =====');
+
+    // 读取配置中的请求间隔
+    try {
+      const config = await ChromeExtensionApi.sendMessage('getConfig');
+      if (config?.contentSettings?.requestDelay) {
+        this.requestDelay = config.contentSettings.requestDelay;
+        console.log('[Bilibili] 从配置读取请求间隔:', this.requestDelay, 'ms');
+      }
+    } catch (error) {
+      console.warn('[Bilibili] 无法读取配置，使用默认请求间隔:', this.requestDelay);
+    }
+
+    // 先检查登录状态
+    console.log('[Bilibili] 调用isLogin()检测登录状态...');
+    const isLoggedIn = await this.isLogin();
+    console.log('[Bilibili] isLogin()返回结果:', isLoggedIn);
+
+    if (!isLoggedIn) {
+      console.error('[Bilibili] 登录检测失败，抛出异常');
+      throw new Error(ERROR_MESSAGES.NOT_LOGGED_IN);
+    }
+
+    console.log('[Bilibili] 登录检测通过，开始获取UID...');
+    const uid = await this.getUserId();
+    console.log('[Bilibili] 获取到UID:', uid);
+
     if (!uid) {
+      console.error('[Bilibili] 获取UID失败，抛出异常');
       throw new Error(ERROR_MESSAGES.NOT_LOGGED_IN);
     }
 
@@ -77,23 +222,63 @@ export class BilibiliAdapter implements PlatformAdapter {
     const pageSize = 50;
 
     try {
-      while (allUps.length < this.maxUpSers) {
-        const url = `https://api.bilibili.com/x/relation/followings?vmid=${uid}&pn=${page}&ps=${pageSize}&order=desc`;
+      // 获取完整的cookie字符串
+      const cookies = await this.getCookieString();
+      console.log('[Bilibili] 获取到cookies长度:', cookies.length);
 
-        const response = await fetch(url, {
-          headers: {
-            'Cookie': document.cookie,
-            'Referer': 'https://www.bilibili.com',
-          },
+      while (allUps.length < this.maxUpSers) {
+        console.log(`[Bilibili] 发起API请求 - 页面: ${page}, 当前获取: ${allUps.length}/${this.maxUpSers}`);
+
+        const url = `https://api.bilibili.com/x/relation/followings?vmid=${uid}&pn=${page}&ps=${pageSize}&order=desc`;
+        console.log('[Bilibili] 请求URL:', url);
+
+        console.log('[Bilibili] 获取cookies并通过background script发送请求...');
+        console.log('[Bilibili] document.cookie长度:', document.cookie.length);
+        console.log('[Bilibili] document.cookie包含SESSDATA:', document.cookie.includes('SESSDATA'));
+
+        // 获取完整的cookie字符串
+        const cookies = await this.getCookieString();
+        console.log('[Bilibili] 最终使用的cookies长度:', cookies.length);
+
+        // 通过background script发送请求，手动传递cookies
+        const response = await chrome.runtime.sendMessage({
+          action: 'makeRequest',
+          data: {
+            url: url,
+            method: 'GET',
+            headers: {
+              'Cookie': cookies,
+              'Referer': 'https://www.bilibili.com',
+              'User-Agent': navigator.userAgent,
+              'Accept': 'application/json, text/plain, */*',
+              'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+              'Accept-Encoding': 'gzip, deflate, br',
+              'Origin': 'https://www.bilibili.com',
+              'Sec-Fetch-Dest': 'empty',
+              'Sec-Fetch-Mode': 'cors',
+              'Sec-Fetch-Site': 'same-site'
+            }
+          }
         });
+
+        console.log('[Bilibili] Background script响应:', response);
 
         if (!response.ok) {
           throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
 
-        const data = await response.json();
+        const data = JSON.parse(response.responseText);
+
+        console.log('[Bilibili] API响应数据:', {
+          code: data.code,
+          message: data.message,
+          hasData: !!data.data,
+          dataListLength: data.data?.list?.length || 0,
+          fullData: data
+        });
 
         if (data.code !== 0) {
+          console.error('[Bilibili] API返回错误码:', data.code, '错误信息:', data.message);
           throw new Error(data.message || '获取关注列表失败');
         }
 
@@ -123,7 +308,8 @@ export class BilibiliAdapter implements PlatformAdapter {
 
         // 延迟避免频率限制
         if (allUps.length < this.maxUpSers) {
-          await this.delay(500);
+          console.log(`[Bilibili] 等待 ${this.requestDelay}ms 后请求下一页...`);
+          await this.delay(this.requestDelay);
         }
       }
 
@@ -151,6 +337,9 @@ export class BilibiliAdapter implements PlatformAdapter {
     try {
       // 获取视频池（按播放量排序，可以获取不同时期的视频）
       const url = `https://api.bilibili.com/x/space/arc/search?mid=${userId}&ps=50&tid=0&pn=1&order=click`;
+
+      console.log(`[Bilibili] 等待 ${this.requestDelay}ms 后获取UP ${userId} 的视频...`);
+      await this.delay(this.requestDelay);
 
       const response = await fetch(url, {
         headers: {

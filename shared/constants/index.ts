@@ -7,6 +7,7 @@ export const DEFAULT_CONFIG = {
     maxItems: 20,
     refreshInterval: 30 * 60 * 1000, // 30分钟
     shuffleEnabled: true,
+    requestDelay: 2000, // 2秒间隔
   },
   uiSettings: {
     showNotifications: true,

@@ -197,11 +197,58 @@ export class ContentEngine {
 
   // 获取缓存的内容
   async getCachedContent(platform?: Platform): Promise<ContentItem[] | null> {
-    const cacheKey = platform
-      ? `onlyfocus_${platform}_content_latest`
-      : 'onlyfocus_content_latest';
+    console.log('[ContentEngine] getCachedContent 调用，platform:', platform);
 
-    return await StorageManager.getCache<ContentItem[]>(cacheKey);
+    if (platform === 'bilibili' || !platform) {
+      // 对于B站或所有平台，需要找到所有视频缓存并合并
+      const allContent: ContentItem[] = [];
+
+      try {
+        // 获取所有存储的键，找到匹配bilibili视频缓存的
+        if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+          const allItems = await chrome.storage.local.get();
+          console.log('[ContentEngine] 所有存储键:', Object.keys(allItems));
+
+          const possibleKeys = Object.keys(allItems).filter(key =>
+            key.startsWith('onlyfocus_bilibili_videos_')
+          );
+
+          console.log('[ContentEngine] 找到的视频缓存键:', possibleKeys);
+
+          // 从所有缓存中获取内容并合并
+          for (const key of possibleKeys) {
+            try {
+              const cacheItem = await chrome.storage.local.get(key);
+              console.log(`[ContentEngine] 缓存项 ${key}:`, cacheItem[key] ? '存在' : '不存在');
+
+              if (cacheItem[key] && cacheItem[key].data && Array.isArray(cacheItem[key].data)) {
+                const content = cacheItem[key].data;
+                console.log(`[ContentEngine] 从 ${key} 获取到 ${content.length} 个内容`);
+                allContent.push(...content);
+              } else {
+                console.log(`[ContentEngine] ${key} 数据格式不正确或为空`);
+              }
+            } catch (error) {
+              console.error(`[ContentEngine] 从 ${key} 获取内容失败:`, error);
+            }
+          }
+        }
+
+        console.log(`[ContentEngine] 总共获取到 ${allContent.length} 个内容`);
+        return allContent.length > 0 ? allContent : null;
+      } catch (error) {
+        console.error('[ContentEngine] 获取缓存内容失败:', error);
+        return null;
+      }
+    } else if (platform) {
+      console.log('[ContentEngine] 使用平台特定缓存键');
+      const cacheKey = `onlyfocus_${platform}_content_latest`;
+      return await StorageManager.getCache<ContentItem[]>(cacheKey);
+    } else {
+      console.log('[ContentEngine] 使用默认缓存键');
+      const cacheKey = 'onlyfocus_content_latest';
+      return await StorageManager.getCache<ContentItem[]>(cacheKey);
+    }
   }
 
   // 洗牌内容
@@ -235,33 +282,48 @@ export class ContentEngine {
   async getFollowedUsers(platform?: Platform): Promise<FollowedUser[]> {
     try {
       this.log('获取关注用户列表...', 'info');
+      console.log('[ContentEngine] getFollowedUsers 调用，platform:', platform);
 
       let users: FollowedUser[];
 
-      // 尝试从内容脚本获取
-      if (typeof chrome !== 'undefined' && chrome.tabs) {
-        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-        if (tab?.id) {
-          try {
-            users = await ChromeExtensionApi.sendMessage('getFollowedUsers', {
-              platform,
-            }, tab.id);
-          } catch (error) {
-            // 如果内容脚本不可用，从缓存获取
+      // 当platform为undefined时，获取所有平台的数据
+      if (!platform) {
+        console.log('[ContentEngine] 获取所有平台的数据');
+        users = await this.getCachedFollowedUsersFromAllPlatforms();
+      } else {
+        // 尝试从内容脚本获取
+        if (typeof chrome !== 'undefined' && chrome.tabs) {
+          const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+          console.log('[ContentEngine] 当前标签页:', tab);
+          if (tab?.id) {
+            try {
+              console.log('[ContentEngine] 尝试从内容脚本获取用户...');
+              users = await ChromeExtensionApi.sendMessage('getFollowedUsers', {
+                platform,
+              }, tab.id);
+              console.log('[ContentEngine] 从内容脚本获取到用户数:', users.length);
+            } catch (error) {
+              console.log('[ContentEngine] 内容脚本不可用，从缓存获取:', error);
+              // 如果内容脚本不可用，从缓存获取
+              users = await this.getCachedFollowedUsers(platform);
+            }
+          } else {
+            console.log('[ContentEngine] 没有活跃标签页，从缓存获取');
             users = await this.getCachedFollowedUsers(platform);
           }
         } else {
+          console.log('[ContentEngine] Chrome API不可用，从缓存获取');
           users = await this.getCachedFollowedUsers(platform);
         }
-      } else {
-        users = await this.getCachedFollowedUsers(platform);
       }
 
+      console.log('[ContentEngine] 最终返回用户数:', users.length);
       this.emit('followedUsersLoaded', { users, platform });
       this.log(`获取到 ${users.length} 个关注用户`, 'success');
 
       return users;
     } catch (error) {
+      console.log('[ContentEngine] 获取关注用户失败:', error);
       this.log(`获取关注用户失败: ${error}`, 'error');
       this.emit('followedUsersLoadFailed', { error, platform });
       throw error;
@@ -270,12 +332,109 @@ export class ContentEngine {
 
   // 获取缓存的关注用户
   private async getCachedFollowedUsers(platform?: Platform): Promise<FollowedUser[]> {
-    const cacheKey = platform
-      ? `onlyfocus_${platform}_followed_users`
-      : 'onlyfocus_followed_users';
+    let cacheKey: string;
+
+    if (platform === 'bilibili') {
+      console.log('[ContentEngine] 开始查找bilibili关注缓存...');
+
+      // 对于B站，需要找到用户UID的缓存键
+      const possibleKeys = [];
+
+      try {
+        // 获取所有存储的键，找到匹配bilibili关注缓存的
+        if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+          const allItems = await chrome.storage.local.get();
+          console.log('[ContentEngine] 获取到的所有存储键:', Object.keys(allItems));
+
+          possibleKeys.push(...Object.keys(allItems).filter(key =>
+            key.startsWith('onlyfocus_bilibili_followings_')
+          ));
+        }
+
+        console.log('[ContentEngine] 找到的bilibili关注缓存键:', possibleKeys);
+
+        if (possibleKeys.length > 0) {
+          // 使用第一个找到的bilibili关注缓存
+          cacheKey = possibleKeys[0];
+          console.log('[ContentEngine] 使用缓存键:', cacheKey);
+
+          // 直接从chrome.storage获取缓存项
+          const cacheItem = await chrome.storage.local.get(cacheKey);
+          console.log('[ContentEngine] 缓存项内容:', cacheItem);
+
+          if (cacheItem[cacheKey] && cacheItem[cacheKey].data) {
+            const users = cacheItem[cacheKey].data;
+            console.log('[ContentEngine] 从缓存获取到用户数:', users?.length || 0);
+            return users || [];
+          } else {
+            console.log('[ContentEngine] 缓存项不存在或没有data字段');
+            return [];
+          }
+        } else {
+          console.log('[ContentEngine] 没有找到bilibili关注缓存');
+          return [];
+        }
+      } catch (error) {
+        console.error('[ContentEngine] 查找缓存时出错:', error);
+        return [];
+      }
+    } else if (platform) {
+      cacheKey = `onlyfocus_${platform}_followed_users`;
+    } else {
+      cacheKey = 'onlyfocus_followed_users';
+    }
 
     const users = await StorageManager.getCache<FollowedUser[]>(cacheKey);
+    console.log('[ContentEngine] 从缓存获取到用户数:', users?.length || 0);
     return users || [];
+  }
+
+  // 从所有平台获取缓存的关注用户
+  private async getCachedFollowedUsersFromAllPlatforms(): Promise<FollowedUser[]> {
+    console.log('[ContentEngine] 开始获取所有平台的关注用户数据...');
+    const allUsers: FollowedUser[] = [];
+
+    try {
+      // 获取所有存储的键
+      if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+        const allItems = await chrome.storage.local.get();
+        console.log('[ContentEngine] 获取到的所有存储键:', Object.keys(allItems));
+
+        // 查找所有平台相关的缓存键
+        const followingsKeys = Object.keys(allItems).filter(key =>
+          key.startsWith('onlyfocus_bilibili_followings_')
+        );
+        const videoKeys = Object.keys(allItems).filter(key =>
+          key.startsWith('onlyfocus_bilibili_videos_')
+        );
+
+        console.log('[ContentEngine] 找到的关注缓存键:', followingsKeys);
+        console.log('[ContentEngine] 找到的视频缓存键:', videoKeys);
+
+        // 从关注缓存中获取用户数据
+        for (const key of followingsKeys) {
+          try {
+            const cacheItem = await chrome.storage.local.get(key);
+            if (cacheItem[key] && cacheItem[key].data && Array.isArray(cacheItem[key].data)) {
+              const users = cacheItem[key].data;
+              console.log(`[ContentEngine] 从 ${key} 获取到 ${users.length} 个用户`);
+              allUsers.push(...users);
+            }
+          } catch (error) {
+            console.error(`[ContentEngine] 从 ${key} 获取数据失败:`, error);
+          }
+        }
+
+        console.log(`[ContentEngine] 总共获取到 ${allUsers.length} 个关注用户`);
+        return allUsers;
+      } else {
+        console.log('[ContentEngine] Chrome storage API不可用');
+        return [];
+      }
+    } catch (error) {
+      console.error('[ContentEngine] 获取所有平台数据失败:', error);
+      return [];
+    }
   }
 
   // 获取引擎状态
