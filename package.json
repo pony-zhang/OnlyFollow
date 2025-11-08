@@ -1,35 +1,33 @@
 {
-  "name": "bun-react-template",
-  "version": "0.1.0",
-  "private": true,
+  "name": "onlyfocus",
+  "version": "1.0.0",
+  "description": "将各大平台的算法推荐替换为用户关注内容的随机展示",
   "type": "module",
-  "main": "src/index.tsx",
-  "module": "src/index.tsx",
   "scripts": {
-    "dev": "bun --hot src/index.tsx",
-    "start": "NODE_ENV=production bun src/index.tsx",
-    "build": "bun run build.ts"
+    "dev": "bun run build",
+    "build": "bun run scripts/build.ts",
+    "build:tsc": "tsc --noEmit",
+    "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@hookform/resolvers": "^4.1.0",
+    "@radix-ui/react-dialog": "^1.0.5",
     "@radix-ui/react-label": "^2.1.2",
     "@radix-ui/react-select": "^2.1.6",
-    "@radix-ui/react-slot": "^1.1.2",
-    "bun-plugin-tailwind": "^0.0.14",
-    "class-variance-authority": "^0.7.1",
+    "@radix-ui/react-switch": "^1.0.3",
+    "@radix-ui/react-tabs": "^1.0.4",
     "clsx": "^2.1.1",
     "lucide-react": "^0.475.0",
     "react": "^19",
     "react-dom": "^19",
-    "react-hook-form": "^7.54.2",
-    "tailwind-merge": "^3.0.1",
     "tailwindcss": "^4.0.6",
-    "tailwindcss-animate": "^1.0.7",
-    "zod": "^3.24.2"
+    "zustand": "^4.4.1"
   },
   "devDependencies": {
+    "@types/chrome": "^0.0.243",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "@types/bun": "latest"
+    "@types/bun": "latest",
+    "typescript": "^5.2.2",
+    "esbuild": "^0.19.5"
   }
 }

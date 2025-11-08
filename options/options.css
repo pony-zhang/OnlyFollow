@@ -1,0 +1,254 @@
+/* 选项页面样式 */
+.options-container {
+  min-width: 600px;
+  min-height: 500px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: #f5f5f5;
+  color: #333333;
+  margin: 0;
+  padding: 0;
+}
+
+/* 头部样式 */
+.options-header {
+  background: #ffffff;
+  padding: 24px;
+  border-bottom: 1px solid #e0e0e0;
+  position: relative;
+}
+
+.options-header h1 {
+  margin: 0;
+  font-size: 28px;
+  font-weight: 600;
+  color: #1a73e8;
+}
+
+.save-message {
+  position: absolute;
+  top: 24px;
+  right: 24px;
+  padding: 8px 16px;
+  background: #0f9d58;
+  color: white;
+  border-radius: 4px;
+  font-size: 14px;
+  animation: fadeInOut 2s ease-in-out;
+}
+
+@keyframes fadeInOut {
+  0% { opacity: 0; transform: translateY(-10px); }
+  20% { opacity: 1; transform: translateY(0); }
+  80% { opacity: 1; transform: translateY(0); }
+  100% { opacity: 0; transform: translateY(-10px); }
+}
+
+/* 主内容区域 */
+.options-main {
+  padding: 24px;
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+/* 设置区块 */
+.settings-section {
+  background: #ffffff;
+  border-radius: 8px;
+  padding: 24px;
+  margin-bottom: 24px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.settings-section h2 {
+  margin: 0 0 20px 0;
+  font-size: 20px;
+  font-weight: 600;
+  color: #333333;
+  border-bottom: 2px solid #1a73e8;
+  padding-bottom: 8px;
+}
+
+/* 平台设置 */
+.platform-settings {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+}
+
+.platform-toggle {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  padding: 12px;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  transition: all 0.2s;
+}
+
+.platform-toggle:hover {
+  background: #f8f9fa;
+  border-color: #1a73e8;
+}
+
+.platform-toggle input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+}
+
+.platform-name {
+  font-size: 16px;
+  font-weight: 500;
+  color: #333333;
+}
+
+/* 表单元素 */
+.form-group {
+  margin-bottom: 20px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #333333;
+}
+
+.form-group input[type="number"],
+.form-group select {
+  width: 100%;
+  max-width: 300px;
+  padding: 12px;
+  border: 1px solid #dadce0;
+  border-radius: 6px;
+  font-size: 14px;
+  background: #ffffff;
+  transition: border-color 0.2s;
+}
+
+.form-group input[type="number"]:focus,
+.form-group select:focus {
+  outline: none;
+  border-color: #1a73e8;
+  box-shadow: 0 0 0 3px rgba(26, 115, 232, 0.1);
+}
+
+.checkbox-label {
+  display: flex !important;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  margin-bottom: 0 !important;
+}
+
+.checkbox-label input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+}
+
+/* 操作按钮 */
+.action-buttons {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.action-buttons button {
+  padding: 12px 24px;
+  border: 1px solid #dadce0;
+  background: #ffffff;
+  color: #333333;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.2s;
+  min-width: 120px;
+}
+
+.action-buttons button:hover {
+  background: #f8f9fa;
+  border-color: #1a73e8;
+  color: #1a73e8;
+}
+
+.action-buttons button.danger {
+  border-color: #ea4335;
+  color: #ea4335;
+}
+
+.action-buttons button.danger:hover {
+  background: #ea4335;
+  color: #ffffff;
+}
+
+/* 加载和错误状态 */
+.loading, .error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 400px;
+  text-align: center;
+}
+
+.spinner {
+  width: 48px;
+  height: 48px;
+  border: 4px solid #f3f3f3;
+  border-top: 4px solid #1a73e8;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 16px;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.error h2 {
+  color: #ea4335;
+  margin-bottom: 12px;
+}
+
+.error button {
+  margin-top: 16px;
+  padding: 10px 20px;
+  border: 1px solid #1a73e8;
+  background: #1a73e8;
+  color: white;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .options-container {
+    min-width: 100%;
+  }
+
+  .options-main {
+    padding: 16px;
+  }
+
+  .settings-section {
+    padding: 16px;
+  }
+
+  .platform-settings {
+    grid-template-columns: 1fr;
+  }
+
+  .action-buttons {
+    flex-direction: column;
+  }
+
+  .action-buttons button {
+    width: 100%;
+  }
+}

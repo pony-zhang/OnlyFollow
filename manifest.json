@@ -1,0 +1,54 @@
+{
+  "manifest_version": 3,
+  "name": "OnlyFocus",
+  "version": "1.0.0",
+  "description": "将各大平台的算法推荐替换为用户关注内容的随机展示，让你重新掌控信息流",
+  "permissions": [
+    "storage",
+    "activeTab",
+    "cookies"
+  ],
+  "host_permissions": [
+    "https://*.bilibili.com/*",
+    "https://*.youtube.com/*",
+    "https://*.twitter.com/*",
+    "https://*.x.com/*",
+    "https://*.instagram.com/*",
+    "https://api.bilibili.com/*",
+    "https://www.googleapis.com/youtube/v3/*"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.bilibili.com/*",
+        "https://www.youtube.com/*",
+        "https://twitter.com/*",
+        "https://x.com/*",
+        "https://www.instagram.com/*"
+      ],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "OnlyFocus",
+    "default_icon": {
+      "16": "assets/icons/icon16.png",
+      "32": "assets/icons/icon32.png",
+      "48": "assets/icons/icon48.png",
+      "128": "assets/icons/icon128.png"
+    }
+  },
+  "options_page": "options.html",
+  "icons": {
+    "16": "assets/icons/icon16.png",
+    "32": "assets/icons/icon32.png",
+    "48": "assets/icons/icon48.png",
+    "128": "assets/icons/icon128.png"
+  }
+}
