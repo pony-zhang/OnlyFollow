@@ -28,6 +28,11 @@ export class BilibiliAdapter implements PlatformAdapter {
   private rateLimitHitCount = 0; // 频率限制命中计数
   private lastRateLimitTime = 0; // 上次频率限制时间
 
+  // 换一换功能相关状态
+  private currentCachedVideos: ContentItem[] = []; // 当前可用的缓存视频池
+  private displayedVideoIds: Set<string> = new Set(); // 已显示的视频ID，避免重复
+  private refreshButtonHandler: (() => void) | null = null; // 换一换按钮的事件处理器
+
   // 检查是否在B站页面
   isActive(): boolean {
     return window.location.hostname.includes("bilibili.com");
@@ -586,6 +591,13 @@ export class BilibiliAdapter implements PlatformAdapter {
       );
       try {
         await this.replaceContent(cachedVideos);
+
+        // 记录已显示的视频ID
+        cachedVideos.forEach(video => this.displayedVideoIds.add(video.id));
+
+        // 初始化换一换按钮功能
+        await this.initializeRefreshButton();
+
       } catch (error) {
         console.error("[Bilibili] 使用缓存视频替换内容失败:", error);
       }
@@ -628,7 +640,14 @@ export class BilibiliAdapter implements PlatformAdapter {
       await this.updateUsersSequentially(users);
     }
 
-    console.log(`[Bilibili] 后台更新完成`);
+    console.log(`[Bilibili] 后台更新完成，重新初始化换一换按钮...`);
+
+    // 更新完成后重新初始化换一换按钮，使其能使用新缓存的视频
+    try {
+      await this.initializeRefreshButton();
+    } catch (error) {
+      console.error("[Bilibili] 后台更新后重新初始化换一换按钮失败:", error);
+    }
   }
 
   // 并发处理用户更新
@@ -1111,5 +1130,186 @@ export class BilibiliAdapter implements PlatformAdapter {
       colors: this.config.colors,
       selectors: this.config.selectors,
     };
+  }
+
+  // ===== 换一换功能相关方法 =====
+
+  // 初始化换一换功能 - 在获取内容后调用
+  async initializeRefreshButton(): Promise<void> {
+    console.log("[Bilibili] 初始化换一换按钮功能...");
+
+    try {
+      // 1. 收集所有可用的缓存视频
+      await this.collectAllCachedVideos();
+
+      if (this.currentCachedVideos.length === 0) {
+        console.log("[Bilibili] 没有缓存视频，跳过换一换按钮初始化");
+        return;
+      }
+
+      // 2. 查找并劫持换一换按钮
+      await this.hijackRefreshButton();
+
+      console.log(`[Bilibili] 换一换按钮初始化完成，可用缓存视频: ${this.currentCachedVideos.length} 个`);
+    } catch (error) {
+      console.error("[Bilibili] 初始化换一换按钮失败:", error);
+    }
+  }
+
+  // 收集所有可用的缓存视频
+  private async collectAllCachedVideos(): Promise<void> {
+    console.log("[Bilibili] 收集所有缓存视频...");
+
+    try {
+      // 获取当前用户的关注列表
+      const followedUsers = await this.getFollowedUsers();
+      const allVideos: ContentItem[] = [];
+
+      // 遍历每个UP主的缓存
+      for (const user of followedUsers) {
+        const cacheKey = `onlyfocus_bilibili_videos_${user.platformId}`;
+        const cached = await StorageManager.getCache<ContentItem[]>(cacheKey);
+
+        if (cached && cached.length > 0) {
+          console.log(`[Bilibili] UP ${user.displayName}: ${cached.length} 个缓存视频`);
+          allVideos.push(...cached);
+        }
+      }
+
+      // 过滤掉已显示的视频，确保换一换能显示新内容
+      const availableVideos = allVideos.filter(video => !this.displayedVideoIds.has(video.id));
+
+      this.currentCachedVideos = availableVideos;
+      console.log(`[Bilibili] 总计收集到 ${allVideos.length} 个缓存视频，可用新视频: ${availableVideos.length} 个`);
+
+    } catch (error) {
+      console.error("[Bilibili] 收集缓存视频失败:", error);
+      this.currentCachedVideos = [];
+    }
+  }
+
+  // 查找并劫持换一换按钮
+  private async hijackRefreshButton(): Promise<void> {
+    console.log("[Bilibili] 查找换一换按钮...");
+
+    // 等待按钮出现，最多等待10秒
+    const button = await DOMUtils.waitForElement('.primary-btn.roll-btn', 10000);
+
+    if (!button) {
+      console.log("[Bilibili] 未找到换一换按钮");
+      return;
+    }
+
+    console.log("[Bilibili] 找到换一换按钮，开始劫持功能...");
+
+    // 移除原有的事件监听器（通过克隆重建元素）
+    const newButton = button.cloneNode(true) as HTMLButtonElement;
+    button.parentNode?.replaceChild(newButton, button);
+
+    // 添加新的事件处理器
+    this.refreshButtonHandler = () => this.handleRefreshClick();
+    newButton.addEventListener('click', this.refreshButtonHandler);
+
+    // 修改按钮样式，表示功能已改变
+    newButton.style.backgroundColor = '#00a1d6'; // B站蓝色
+    newButton.title = "从缓存视频中换一批新的内容";
+
+    // 添加视觉标识
+    const span = newButton.querySelector('span');
+    if (span) {
+      span.textContent = "缓存换一换";
+    }
+
+    console.log("[Bilibili] 换一换按钮劫持完成");
+  }
+
+  // 处理换一换按钮点击
+  private async handleRefreshClick(): Promise<void> {
+    console.log("[Bilibili] 换一换按钮被点击，从缓存获取新视频...");
+
+    if (this.currentCachedVideos.length === 0) {
+      console.log("[Bilibili] 没有可用的缓存视频，尝试重新收集...");
+      await this.collectAllCachedVideos();
+
+      if (this.currentCachedVideos.length === 0) {
+        this.showMessage("没有可用的缓存视频，请先浏览一些内容");
+        return;
+      }
+    }
+
+    try {
+      // 从缓存视频中随机选择一批新的
+      const newVideos = this.getRandomVideos(this.currentCachedVideos, this.totalVideosNeeded);
+
+      if (newVideos.length === 0) {
+        this.showMessage("缓存视频已用完，请稍后再试");
+        return;
+      }
+
+      // 记录即将显示的视频ID，避免下次重复显示
+      newVideos.forEach(video => this.displayedVideoIds.add(video.id));
+
+      // 从缓存池中移除已使用的视频
+      const usedIds = new Set(newVideos.map(v => v.id));
+      this.currentCachedVideos = this.currentCachedVideos.filter(v => !usedIds.has(v.id));
+
+      // 替换页面内容
+      await this.replaceContent(newVideos);
+
+      // 显示提示信息
+      this.showMessage(`已替换为 ${newVideos.length} 个新的缓存视频`);
+
+      console.log(`[Bilibili] 换一换完成: 显示了 ${newVideos.length} 个新视频，剩余缓存: ${this.currentCachedVideos.length} 个`);
+
+    } catch (error) {
+      console.error("[Bilibili] 换一换处理失败:", error);
+      this.showMessage("换一换失败，请稍后重试");
+    }
+  }
+
+  // 显示临时提示信息
+  private showMessage(message: string): void {
+    // 创建提示元素
+    const toast = document.createElement('div');
+    toast.textContent = message;
+    toast.style.cssText = `
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      background: rgba(0, 0, 0, 0.8);
+      color: white;
+      padding: 12px 20px;
+      border-radius: 4px;
+      font-size: 14px;
+      z-index: 10000;
+      transition: opacity 0.3s ease;
+    `;
+
+    document.body.appendChild(toast);
+
+    // 3秒后自动消失
+    setTimeout(() => {
+      toast.style.opacity = '0';
+      setTimeout(() => {
+        document.body.removeChild(toast);
+      }, 300);
+    }, 3000);
+  }
+
+  // 清理换一换功能（页面卸载时调用）
+  cleanupRefreshButton(): void {
+    console.log("[Bilibili] 清理换一换按钮功能...");
+
+    if (this.refreshButtonHandler) {
+      const button = document.querySelector('.primary-btn.roll-btn');
+      if (button) {
+        button.removeEventListener('click', this.refreshButtonHandler);
+      }
+      this.refreshButtonHandler = null;
+    }
+
+    // 重置状态
+    this.currentCachedVideos = [];
+    this.displayedVideoIds.clear();
   }
 }
