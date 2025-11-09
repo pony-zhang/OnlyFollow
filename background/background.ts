@@ -402,8 +402,15 @@ class BackgroundService {
       // 根据配置决定是否自动启动内容引擎
       const config = await configManager.getConfig();
       if (config.enabledPlatforms.length > 0) {
-        // 不在后台自动启动，等待页面加载后再启动
-        this.log('内容引擎准备就绪，等待页面加载');
+        // 启动内容引擎以支持后台操作
+        this.log('启动内容引擎...');
+        await contentEngine.start({
+          platform: null, // 不指定平台
+          maxItems: config.globalSettings.maxItemsPerPlatform,
+          refreshInterval: config.globalSettings.refreshInterval,
+          shuffleEnabled: config.globalSettings.shuffleEnabled,
+        });
+        this.log('内容引擎已启动', 'success');
       }
     } catch (error) {
       this.log(`内容引擎初始化失败: ${error}`, 'error');

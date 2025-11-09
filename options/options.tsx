@@ -219,9 +219,9 @@ function OptionsPage() {
               type="number"
               min="1"
               max="100"
-              value={config.contentSettings.maxItems}
+              value={config.globalSettings.maxItemsPerPlatform}
               onChange={(e) => updateContentSettings({
-                maxItems: parseInt(e.target.value) || 20
+                maxItemsPerPlatform: parseInt(e.target.value) || 20
               })}
             />
           </div>
@@ -231,7 +231,7 @@ function OptionsPage() {
               id="refreshInterval"
               type="number"
               min="1"
-              value={config.contentSettings.refreshInterval / 60000}
+              value={config.globalSettings.refreshInterval / 60000}
               onChange={(e) => updateContentSettings({
                 refreshInterval: parseInt(e.target.value) * 60000
               })}
@@ -245,18 +245,27 @@ function OptionsPage() {
               min="1000"
               max="10000"
               step="1000"
-              value={config.contentSettings.requestDelay}
-              onChange={(e) => updateContentSettings({
-                requestDelay: parseInt(e.target.value) || 5000
-              })}
+              value={config.platformSettings.bilibili.requestDelay}
+              onChange={(e) => {
+                const updates = {
+                  platformSettings: {
+                    ...config.platformSettings,
+                    bilibili: {
+                      ...config.platformSettings.bilibili,
+                      requestDelay: parseInt(e.target.value) || 15000
+                    }
+                  }
+                };
+                saveConfig(updates);
+              }}
             />
-            <small>设置API请求之间的间隔时间，避免触发频率限制（建议5000毫秒以上）</small>
+            <small>设置API请求之间的间隔时间，避免触发频率限制（建议15000毫秒以上）</small>
           </div>
           <div className="form-group">
             <label className="checkbox-label">
               <input
                 type="checkbox"
-                checked={config.contentSettings.shuffleEnabled}
+                checked={config.globalSettings.shuffleEnabled}
                 onChange={(e) => updateContentSettings({
                   shuffleEnabled: e.target.checked
                 })}
@@ -268,16 +277,25 @@ function OptionsPage() {
             <label className="checkbox-label">
               <input
                 type="checkbox"
-                checked={config.contentSettings.concurrentRequests}
-                onChange={(e) => updateContentSettings({
-                  concurrentRequests: e.target.checked
-                })}
+                checked={config.platformSettings.bilibili.concurrentRequests}
+                onChange={(e) => {
+                  const updates = {
+                    platformSettings: {
+                      ...config.platformSettings,
+                      bilibili: {
+                        ...config.platformSettings.bilibili,
+                        concurrentRequests: e.target.checked
+                      }
+                    }
+                  };
+                  saveConfig(updates);
+                }}
               />
               <span>启用并发请求</span>
             </label>
             <small>启用后可加快后台更新速度，但可能触发B站频率限制（强烈建议关闭）</small>
           </div>
-          {config.contentSettings.concurrentRequests && (
+          {config.platformSettings.bilibili.concurrentRequests && (
             <div className="form-group">
               <label htmlFor="concurrentLimit">并发数量</label>
               <input
@@ -285,10 +303,19 @@ function OptionsPage() {
                 type="number"
                 min="1"
                 max="3"
-                value={config.contentSettings.concurrentLimit}
-                onChange={(e) => updateContentSettings({
-                  concurrentLimit: parseInt(e.target.value) || 1
-                })}
+                value={config.platformSettings.bilibili.concurrentLimit}
+                onChange={(e) => {
+                  const updates = {
+                    platformSettings: {
+                      ...config.platformSettings,
+                      bilibili: {
+                        ...config.platformSettings.bilibili,
+                        concurrentLimit: parseInt(e.target.value) || 1
+                      }
+                    }
+                  };
+                  saveConfig(updates);
+                }}
               />
               <small>同时进行的最大请求数量（建议设置为1，避免请求失败）</small>
             </div>

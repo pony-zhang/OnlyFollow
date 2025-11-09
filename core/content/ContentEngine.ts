@@ -125,11 +125,11 @@ export class ContentEngine {
       const config = await configManager.getConfig();
       const finalOptions: Required<ContentEngineOptions> = {
         platform: options?.platform || (null as any),
-        maxItems: options?.maxItems || config.contentSettings.maxItems,
+        maxItems: options?.maxItems || config.globalSettings.maxItemsPerPlatform,
         refreshInterval:
-          options?.refreshInterval || config.contentSettings.refreshInterval,
+          options?.refreshInterval || config.globalSettings.refreshInterval,
         shuffleEnabled:
-          options?.shuffleEnabled || config.contentSettings.shuffleEnabled,
+          options?.shuffleEnabled || config.globalSettings.shuffleEnabled,
       };
 
       // 获取内容
