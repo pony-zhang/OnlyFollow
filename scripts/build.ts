@@ -4,7 +4,7 @@
  * 简化的构建脚本
  */
 
-const esbuild = require('esbuild');
+import * as esbuild from 'esbuild';
 
 async function build() {
   try {
@@ -114,4 +114,10 @@ async function build() {
   }
 }
 
-build();
+// 导出构建函数以供其他模块使用
+export { build };
+
+// 如果直接运行此脚本，执行构建
+if (import.meta.main) {
+  build();
+}

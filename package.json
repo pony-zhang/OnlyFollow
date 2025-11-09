@@ -7,7 +7,10 @@
     "dev": "bun run build",
     "build": "bun run scripts/build.ts",
     "build:tsc": "tsc --noEmit",
-    "clean": "rm -rf dist"
+    "clean": "rm -rf dist",
+    "package": "bun run scripts/package.ts",
+    "package:dev": "bun run scripts/package.ts",
+    "release": "bun run clean && bun run package"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.0.5",
