@@ -17,6 +17,7 @@ import { configManager } from "../../core/config/ConfigManager";
 export class BilibiliAdapter implements PlatformAdapter {
   readonly platform = "bilibili" as const;
 
+  // TODO 需要将这些参数全部作为配置，然后放到options的每个平台的配置页中
   private readonly config = PLATFORM_CONFIG.bilibili;
   private readonly maxUpSers = 100;
   private readonly videosPerUp = 2;
@@ -450,6 +451,7 @@ export class BilibiliAdapter implements PlatformAdapter {
         throw new Error(data.message || "获取视频失败");
       }
 
+      // TODO 需要将类型显示定义
       const videoPool: ContentItem[] = data.data.list.vlist.map((v: any) => ({
         id: `bilibili_${v.bvid}`,
         platform: this.platform,
@@ -1376,6 +1378,8 @@ export class BilibiliAdapter implements PlatformAdapter {
       }
 
       // 3. 智能选择视频（优先选择最新的）
+      // TODO 需要重新设计选择机制，不再以时间为排序（降低时间的权重，避免全部都是最新的视频），而是随机选择UP主，随机选择视频（理念是关注非时效性的内容）
+      // TODO 后续要在core中设计一套完善的缓存视频推荐机制，而且需要在页面中添加一些元素功能（如已经看过，则在一个周期内不再推荐，不感兴趣），新的视频优先推送一次，后续纯随机等，推荐机制需要重新设计
       const newVideos = this.selectVideosSmartly(
         this.currentCachedVideos,
         this.totalVideosNeeded,

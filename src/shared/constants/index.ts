@@ -74,7 +74,7 @@ export const DEFAULT_CONFIG = {
 // 缓存配置
 export const CACHE_CONFIG = {
   FOLLOWED_USERS: 24 * 60 * 60 * 1000, // 24小时
-  CONTENT: 14 * 24 * 60 * 60 * 1000, // 14天 ⚠️ 修改为2周
+  CONTENT: 14 * 24 * 60 * 60 * 1000, // 14天 ⚠️ 修改为2周，避免频繁的更新，更加希望用户能够关注非时效性内容
   METADATA: 7 * 24 * 60 * 60 * 1000, // 7天
   MAX_CACHE_SIZE: 1000, // 最大缓存条目数
 };
