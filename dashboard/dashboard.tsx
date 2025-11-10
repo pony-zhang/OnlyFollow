@@ -1,8 +1,13 @@
-import React, { useState, useEffect } from 'react';
-import { createRoot } from 'react-dom/client';
-import type { UserConfig, ContentItem, FollowedUser, Platform } from '../shared/types';
-import { ChromeExtensionApi } from '../shared/utils/api';
-import { NumberFormatter, DateFormatter } from '../shared/utils/format';
+import React, { useState, useEffect } from "react";
+import { createRoot } from "react-dom/client";
+import type {
+  UserConfig,
+  ContentItem,
+  FollowedUser,
+  Platform,
+} from "../shared/types";
+import { ChromeExtensionApi } from "../shared/utils/api";
+import { NumberFormatter, DateFormatter } from "../shared/utils/format";
 
 interface DashboardState {
   config: UserConfig | null;
@@ -15,15 +20,15 @@ interface DashboardState {
   cacheStats: any;
 
   // 界面状态
-  selectedPlatform: Platform | 'all';
-  selectedView: 'users' | 'stats';
+  selectedPlatform: Platform | "all";
+  selectedView: "users" | "stats";
   searchQuery: string;
 
   // 排序状态
-  userSortBy: 'name' | 'platform' | 'cacheCount' | 'updatedAt';
-  userSortOrder: 'asc' | 'desc';
-  contentSortBy: 'title' | 'publishedAt' | 'views' | 'likes' | 'duration';
-  contentSortOrder: 'asc' | 'desc';
+  userSortBy: "name" | "platform" | "cacheCount" | "updatedAt";
+  userSortOrder: "asc" | "desc";
+  contentSortBy: "title" | "publishedAt" | "views" | "likes" | "duration";
+  contentSortOrder: "asc" | "desc";
 }
 
 // 主面板组件
@@ -35,13 +40,13 @@ function Dashboard() {
     followedUsers: [],
     engineStatus: null,
     cacheStats: null,
-    selectedPlatform: 'all',
-    selectedView: 'users',
-    searchQuery: '',
-    userSortBy: 'updatedAt',
-    userSortOrder: 'desc',
-    contentSortBy: 'publishedAt',
-    contentSortOrder: 'desc',
+    selectedPlatform: "all",
+    selectedView: "users",
+    searchQuery: "",
+    userSortBy: "updatedAt",
+    userSortOrder: "desc",
+    contentSortBy: "publishedAt",
+    contentSortOrder: "desc",
   });
 
   // 初始化数据
@@ -51,31 +56,37 @@ function Dashboard() {
 
   const initializeData = async () => {
     try {
-      setState(prev => ({ ...prev, isLoading: true, error: null }));
+      setState((prev) => ({ ...prev, isLoading: true, error: null }));
 
       // 等待背景脚本准备就绪
       await waitForBackgroundReady();
 
       // 并行获取所有数据
       const results = await Promise.allSettled([
-        ChromeExtensionApi.sendMessage('getConfig'),
-        ChromeExtensionApi.sendMessage('getFollowedUsers'),
-        ChromeExtensionApi.sendMessage('getEngineStatus'),
-        ChromeExtensionApi.sendMessage('getCacheStats'),
+        ChromeExtensionApi.sendMessage("getConfig"),
+        ChromeExtensionApi.sendMessage("getFollowedUsers"),
+        ChromeExtensionApi.sendMessage("getEngineStatus"),
+        ChromeExtensionApi.sendMessage("getCacheStats"),
       ]);
 
-      const config = results[0].status === 'fulfilled' ? results[0].value : null;
-      const followedUsers = results[1].status === 'fulfilled' && Array.isArray(results[1].value) ? results[1].value : [];
-      const engineStatus = results[2].status === 'fulfilled' ? results[2].value : null;
-      const cacheStats = results[3].status === 'fulfilled' ? results[3].value : null;
+      const config =
+        results[0].status === "fulfilled" ? results[0].value : null;
+      const followedUsers =
+        results[1].status === "fulfilled" && Array.isArray(results[1].value)
+          ? results[1].value
+          : [];
+      const engineStatus =
+        results[2].status === "fulfilled" ? results[2].value : null;
+      const cacheStats =
+        results[3].status === "fulfilled" ? results[3].value : null;
 
-      console.log('[Dashboard] 获取到的数据:', {
+      console.log("[Dashboard] 获取到的数据:", {
         followedUsersCount: followedUsers.length,
         engineStatus,
-        cacheStats
+        cacheStats,
       });
 
-      setState(prev => ({
+      setState((prev) => ({
         ...prev,
         config,
         followedUsers,
@@ -84,10 +95,10 @@ function Dashboard() {
         isLoading: false,
       }));
     } catch (error) {
-      setState(prev => ({
+      setState((prev) => ({
         ...prev,
         isLoading: false,
-        error: error instanceof Error ? error.message : '加载失败',
+        error: error instanceof Error ? error.message : "加载失败",
       }));
     }
   };
@@ -96,8 +107,8 @@ function Dashboard() {
   const waitForBackgroundReady = async (maxRetries = 10): Promise<void> => {
     for (let i = 0; i < maxRetries; i++) {
       try {
-        const health = await ChromeExtensionApi.sendMessage('healthCheck');
-        if (health?.status === 'ready') {
+        const health = await ChromeExtensionApi.sendMessage("healthCheck");
+        if (health?.status === "ready") {
           return;
         }
       } catch (error) {
@@ -105,10 +116,10 @@ function Dashboard() {
       }
 
       // 等待一段时间后重试
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await new Promise((resolve) => setTimeout(resolve, 500));
     }
 
-    throw new Error('背景脚本未能及时响应，请刷新页面重试');
+    throw new Error("背景脚本未能及时响应，请刷新页面重试");
   };
 
   // 刷新数据
@@ -119,32 +130,46 @@ function Dashboard() {
   // 清除缓存
   const clearCache = async (platform?: Platform) => {
     try {
-      await ChromeExtensionApi.sendMessage('clearCache', { platform });
+      await ChromeExtensionApi.sendMessage("clearCache", { platform });
       await refreshData();
     } catch (error) {
-      console.error('清除缓存失败:', error);
+      console.error("清除缓存失败:", error);
     }
   };
 
   // 删除用户
-  const deleteUser = async (userId: string, platform: Platform, userName: string) => {
+  const deleteUser = async (
+    userId: string,
+    platform: Platform,
+    userName: string,
+  ) => {
     try {
-      await ChromeExtensionApi.sendMessage('deleteUser', { userId, platform });
+      await ChromeExtensionApi.sendMessage("deleteUser", { userId, platform });
       console.log(`用户 ${userName} 删除成功`);
       await refreshData(); // 刷新数据
     } catch (error) {
-      console.error('删除用户失败:', error);
+      console.error("删除用户失败:", error);
     }
   };
 
   // 过滤数据 - 添加完整的防御性检查
-  const filteredUsers = Array.isArray(state.followedUsers) ? state.followedUsers.filter(user =>
-    user &&
-    (state.selectedPlatform === 'all' || user.platform === state.selectedPlatform) &&
-    (!state.searchQuery ||
-     (user.displayName && user.displayName.toLowerCase().includes(state.searchQuery.toLowerCase())) ||
-     (user.username && user.username.toLowerCase().includes(state.searchQuery.toLowerCase())))
-  ) : [];
+  const filteredUsers = Array.isArray(state.followedUsers)
+    ? state.followedUsers.filter(
+        (user) =>
+          user &&
+          (state.selectedPlatform === "all" ||
+            user.platform === state.selectedPlatform) &&
+          (!state.searchQuery ||
+            (user.displayName &&
+              user.displayName
+                .toLowerCase()
+                .includes(state.searchQuery.toLowerCase())) ||
+            (user.username &&
+              user.username
+                .toLowerCase()
+                .includes(state.searchQuery.toLowerCase()))),
+      )
+    : [];
 
   // 渲染加载状态
   if (state.isLoading) {
@@ -174,12 +199,15 @@ function Dashboard() {
   return (
     <div className="dashboard-container">
       <header className="dashboard-header">
-        <h1>OnlyFocus 查看面板</h1>
+        <h1>OnlyFollow 查看面板</h1>
         <div className="header-actions">
           <button onClick={refreshData} className="refresh-btn">
             🔄 刷新数据
           </button>
-          <button onClick={() => window.open('options.html', '_blank')} className="settings-btn">
+          <button
+            onClick={() => window.open("options.html", "_blank")}
+            className="settings-btn"
+          >
             ⚙️ 设置
           </button>
           <button onClick={() => window.close()} className="close-btn">
@@ -191,14 +219,18 @@ function Dashboard() {
       <div className="dashboard-controls">
         <div className="view-selector">
           <button
-            className={`view-btn ${state.selectedView === 'users' ? 'active' : ''}`}
-            onClick={() => setState(prev => ({ ...prev, selectedView: 'users' }))}
+            className={`view-btn ${state.selectedView === "users" ? "active" : ""}`}
+            onClick={() =>
+              setState((prev) => ({ ...prev, selectedView: "users" }))
+            }
           >
             关注用户 ({filteredUsers.length})
           </button>
           <button
-            className={`view-btn ${state.selectedView === 'stats' ? 'active' : ''}`}
-            onClick={() => setState(prev => ({ ...prev, selectedView: 'stats' }))}
+            className={`view-btn ${state.selectedView === "stats" ? "active" : ""}`}
+            onClick={() =>
+              setState((prev) => ({ ...prev, selectedView: "stats" }))
+            }
           >
             统计信息
           </button>
@@ -207,10 +239,12 @@ function Dashboard() {
         <div className="filters">
           <select
             value={state.selectedPlatform}
-            onChange={(e) => setState(prev => ({
-              ...prev,
-              selectedPlatform: e.target.value as Platform | 'all'
-            }))}
+            onChange={(e) =>
+              setState((prev) => ({
+                ...prev,
+                selectedPlatform: e.target.value as Platform | "all",
+              }))
+            }
           >
             <option value="all">所有平台</option>
             <option value="bilibili">哔哩哔哩</option>
@@ -223,23 +257,31 @@ function Dashboard() {
             type="text"
             placeholder="搜索..."
             value={state.searchQuery}
-            onChange={(e) => setState(prev => ({ ...prev, searchQuery: e.target.value }))}
+            onChange={(e) =>
+              setState((prev) => ({ ...prev, searchQuery: e.target.value }))
+            }
           />
         </div>
       </div>
 
       <div className="dashboard-content">
-        {state.selectedView === 'users' && (
+        {state.selectedView === "users" && (
           <UsersView
             users={filteredUsers}
             onClearCache={clearCache}
             sortBy={state.userSortBy}
             sortOrder={state.userSortOrder}
-            onSortChange={(sortBy, sortOrder) => setState(prev => ({ ...prev, userSortBy: sortBy, userSortOrder: sortOrder }))}
+            onSortChange={(sortBy, sortOrder) =>
+              setState((prev) => ({
+                ...prev,
+                userSortBy: sortBy,
+                userSortOrder: sortOrder,
+              }))
+            }
             onDeleteUser={deleteUser}
           />
         )}
-        {state.selectedView === 'stats' && (
+        {state.selectedView === "stats" && (
           <StatsView
             config={state.config}
             engineStatus={state.engineStatus}
@@ -253,43 +295,63 @@ function Dashboard() {
 }
 
 // 用户视图组件
-function UsersView({ users, onClearCache, sortBy, sortOrder, onSortChange, onDeleteUser }: {
+function UsersView({
+  users,
+  onClearCache,
+  sortBy,
+  sortOrder,
+  onSortChange,
+  onDeleteUser,
+}: {
   users: FollowedUser[];
   onClearCache: (platform?: Platform) => void;
   sortBy: string;
-  sortOrder: 'asc' | 'desc';
-  onSortChange: (sortBy: string, sortOrder: 'asc' | 'desc') => void;
+  sortOrder: "asc" | "desc";
+  onSortChange: (sortBy: string, sortOrder: "asc" | "desc") => void;
   onDeleteUser: (userId: string, platform: Platform, userName: string) => void;
 }) {
   const safeUsers = users || [];
   const [selectedUser, setSelectedUser] = useState<FollowedUser | null>(null);
   const [userContent, setUserContent] = useState<ContentItem[]>([]);
-  const [userCacheCounts, setUserCacheCounts] = useState<Map<string, number>>(new Map());
-  const [contentSearchQuery, setContentSearchQuery] = useState('');
-  const [contentSortBy, setContentSortBy] = useState('publishedAt');
-  const [contentSortOrder, setContentSortOrder] = useState<'asc' | 'desc'>('desc');
-  const [deleteConfirmUser, setDeleteConfirmUser] = useState<{userId: string, platform: Platform, userName: string} | null>(null);
+  const [userCacheCounts, setUserCacheCounts] = useState<Map<string, number>>(
+    new Map(),
+  );
+  const [contentSearchQuery, setContentSearchQuery] = useState("");
+  const [contentSortBy, setContentSortBy] = useState("publishedAt");
+  const [contentSortOrder, setContentSortOrder] = useState<"asc" | "desc">(
+    "desc",
+  );
+  const [deleteConfirmUser, setDeleteConfirmUser] = useState<{
+    userId: string;
+    platform: Platform;
+    userName: string;
+  } | null>(null);
 
   // 排序和过滤辅助函数
-  const sortUsers = (users: FollowedUser[], sortBy: string, sortOrder: 'asc' | 'desc', cacheCounts: Map<string, number>): FollowedUser[] => {
+  const sortUsers = (
+    users: FollowedUser[],
+    sortBy: string,
+    sortOrder: "asc" | "desc",
+    cacheCounts: Map<string, number>,
+  ): FollowedUser[] => {
     return [...users].sort((a, b) => {
       let aValue: any;
       let bValue: any;
 
       switch (sortBy) {
-        case 'name':
-          aValue = (a.displayName || '').toLowerCase();
-          bValue = (b.displayName || '').toLowerCase();
+        case "name":
+          aValue = (a.displayName || "").toLowerCase();
+          bValue = (b.displayName || "").toLowerCase();
           break;
-        case 'platform':
+        case "platform":
           aValue = a.platform;
           bValue = b.platform;
           break;
-        case 'cacheCount':
+        case "cacheCount":
           aValue = cacheCounts.get(a.id) || 0;
           bValue = cacheCounts.get(b.id) || 0;
           break;
-        case 'updatedAt':
+        case "updatedAt":
           aValue = a.updatedAt || 0;
           bValue = b.updatedAt || 0;
           break;
@@ -298,38 +360,42 @@ function UsersView({ users, onClearCache, sortBy, sortOrder, onSortChange, onDel
       }
 
       if (aValue < bValue) {
-        return sortOrder === 'asc' ? -1 : 1;
+        return sortOrder === "asc" ? -1 : 1;
       }
       if (aValue > bValue) {
-        return sortOrder === 'asc' ? 1 : -1;
+        return sortOrder === "asc" ? 1 : -1;
       }
       return 0;
     });
   };
 
-  const sortContent = (content: ContentItem[], sortBy: string, sortOrder: 'asc' | 'desc'): ContentItem[] => {
+  const sortContent = (
+    content: ContentItem[],
+    sortBy: string,
+    sortOrder: "asc" | "desc",
+  ): ContentItem[] => {
     return [...content].sort((a, b) => {
       let aValue: any;
       let bValue: any;
 
       switch (sortBy) {
-        case 'title':
-          aValue = (a.title || '').toLowerCase();
-          bValue = (b.title || '').toLowerCase();
+        case "title":
+          aValue = (a.title || "").toLowerCase();
+          bValue = (b.title || "").toLowerCase();
           break;
-        case 'publishedAt':
+        case "publishedAt":
           aValue = a.publishedAt || 0;
           bValue = b.publishedAt || 0;
           break;
-        case 'views':
+        case "views":
           aValue = a.metrics?.views || 0;
           bValue = b.metrics?.views || 0;
           break;
-        case 'likes':
+        case "likes":
           aValue = a.metrics?.likes || 0;
           bValue = b.metrics?.likes || 0;
           break;
-        case 'duration':
+        case "duration":
           aValue = a.duration || 0;
           bValue = b.duration || 0;
           break;
@@ -338,10 +404,10 @@ function UsersView({ users, onClearCache, sortBy, sortOrder, onSortChange, onDel
       }
 
       if (aValue < bValue) {
-        return sortOrder === 'asc' ? -1 : 1;
+        return sortOrder === "asc" ? -1 : 1;
       }
       if (aValue > bValue) {
-        return sortOrder === 'asc' ? 1 : -1;
+        return sortOrder === "asc" ? 1 : -1;
       }
       return 0;
     });
@@ -350,10 +416,14 @@ function UsersView({ users, onClearCache, sortBy, sortOrder, onSortChange, onDel
   // 获取用户的缓存数量
   const getUserCacheCount = async (user: FollowedUser): Promise<number> => {
     try {
-      const cacheKey = `onlyfocus_${user.platform}_videos_${user.platformId}`;
+      const cacheKey = `onlyfollow_${user.platform}_videos_${user.platformId}`;
       const cacheItem = await chrome.storage.local.get(cacheKey);
 
-      if (cacheItem[cacheKey] && cacheItem[cacheKey].data && Array.isArray(cacheItem[cacheKey].data)) {
+      if (
+        cacheItem[cacheKey] &&
+        cacheItem[cacheKey].data &&
+        Array.isArray(cacheItem[cacheKey].data)
+      ) {
         return cacheItem[cacheKey].data.length;
       }
       return 0;
@@ -385,15 +455,26 @@ function UsersView({ users, onClearCache, sortBy, sortOrder, onSortChange, onDel
   const sortedUsers = sortUsers(safeUsers, sortBy, sortOrder, userCacheCounts);
 
   // 过滤内容列表
-  const filteredContent = userContent.filter(item =>
-    item &&
-    (!contentSearchQuery ||
-     (item.title && item.title.toLowerCase().includes(contentSearchQuery.toLowerCase())) ||
-     (item.description && item.description.toLowerCase().includes(contentSearchQuery.toLowerCase())))
+  const filteredContent = userContent.filter(
+    (item) =>
+      item &&
+      (!contentSearchQuery ||
+        (item.title &&
+          item.title
+            .toLowerCase()
+            .includes(contentSearchQuery.toLowerCase())) ||
+        (item.description &&
+          item.description
+            .toLowerCase()
+            .includes(contentSearchQuery.toLowerCase()))),
   );
 
   // 应用排序到内容列表
-  const sortedContent = sortContent(filteredContent, contentSortBy, contentSortOrder);
+  const sortedContent = sortContent(
+    filteredContent,
+    contentSortBy,
+    contentSortOrder,
+  );
 
   if (safeUsers.length === 0) {
     return (
@@ -409,10 +490,14 @@ function UsersView({ users, onClearCache, sortBy, sortOrder, onSortChange, onDel
       console.log(`[UsersView] 获取用户 ${user.displayName} 的内容`);
 
       // 直接从Chrome存储获取该用户的视频缓存
-      const cacheKey = `onlyfocus_${user.platform}_videos_${user.platformId}`;
+      const cacheKey = `onlyfollow_${user.platform}_videos_${user.platformId}`;
       const cacheItem = await chrome.storage.local.get(cacheKey);
 
-      if (cacheItem[cacheKey] && cacheItem[cacheKey].data && Array.isArray(cacheItem[cacheKey].data)) {
+      if (
+        cacheItem[cacheKey] &&
+        cacheItem[cacheKey].data &&
+        Array.isArray(cacheItem[cacheKey].data)
+      ) {
         const content = cacheItem[cacheKey].data;
         console.log(`[UsersView] 获取到 ${content.length} 个内容`);
         setUserContent(content);
@@ -440,14 +525,18 @@ function UsersView({ users, onClearCache, sortBy, sortOrder, onSortChange, onDel
     setDeleteConfirmUser({
       userId: user.id,
       platform: user.platform,
-      userName: user.displayName || user.username || '未知用户'
+      userName: user.displayName || user.username || "未知用户",
     });
   };
 
   // 确认删除用户
   const confirmDeleteUser = () => {
     if (deleteConfirmUser) {
-      onDeleteUser(deleteConfirmUser.userId, deleteConfirmUser.platform, deleteConfirmUser.userName);
+      onDeleteUser(
+        deleteConfirmUser.userId,
+        deleteConfirmUser.platform,
+        deleteConfirmUser.userName,
+      );
       setDeleteConfirmUser(null);
     }
   };
@@ -468,17 +557,20 @@ function UsersView({ users, onClearCache, sortBy, sortOrder, onSortChange, onDel
           <div className="user-detail-info">
             <div className="user-avatar">
               {selectedUser.avatar ? (
-                <img src={selectedUser.avatar} alt={selectedUser.displayName || '用户'} />
+                <img
+                  src={selectedUser.avatar}
+                  alt={selectedUser.displayName || "用户"}
+                />
               ) : (
                 <div className="avatar-placeholder">
-                  {(selectedUser.displayName || 'U').charAt(0).toUpperCase()}
+                  {(selectedUser.displayName || "U").charAt(0).toUpperCase()}
                 </div>
               )}
               {selectedUser.verified && <div className="verified-badge">✓</div>}
             </div>
             <div className="user-detail-text">
-              <h3>{selectedUser.displayName || '未知用户'}</h3>
-              <p>@{selectedUser.username || 'unknown'}</p>
+              <h3>{selectedUser.displayName || "未知用户"}</h3>
+              <p>@{selectedUser.username || "unknown"}</p>
               <p className="content-count">缓存内容: {userContent.length} 个</p>
             </div>
           </div>
@@ -507,10 +599,12 @@ function UsersView({ users, onClearCache, sortBy, sortOrder, onSortChange, onDel
               <option value="duration">时长</option>
             </select>
             <button
-              onClick={() => setContentSortOrder(contentSortOrder === 'asc' ? 'desc' : 'asc')}
+              onClick={() =>
+                setContentSortOrder(contentSortOrder === "asc" ? "desc" : "asc")
+              }
               className="content-sort-order"
             >
-              {contentSortOrder === 'asc' ? '↑' : '↓'}
+              {contentSortOrder === "asc" ? "↑" : "↓"}
             </button>
           </div>
         </div>
@@ -518,25 +612,34 @@ function UsersView({ users, onClearCache, sortBy, sortOrder, onSortChange, onDel
         <div className="user-content-list">
           {sortedContent.length === 0 ? (
             <div className="empty-state">
-              <p>{contentSearchQuery ? '未找到匹配的内容' : '该用户暂无缓存内容'}</p>
+              <p>
+                {contentSearchQuery ? "未找到匹配的内容" : "该用户暂无缓存内容"}
+              </p>
             </div>
           ) : (
-            sortedContent.map(item => (
+            sortedContent.map((item) => (
               <div key={item.id} className="content-card">
                 <div className="content-thumbnail">
                   {item.thumbnail && (
-                    <img src={item.thumbnail} alt={item.title || '内容'} />
+                    <img src={item.thumbnail} alt={item.title || "内容"} />
                   )}
-                  <div className="content-type">{item.type || 'unknown'}</div>
+                  <div className="content-type">{item.type || "unknown"}</div>
                 </div>
                 <div className="content-info">
                   <h4 className="content-title">
-                    <a href={item.url || '#'} target="_blank" rel="noopener noreferrer">
-                      {item.title || '无标题'}
+                    <a
+                      href={item.url || "#"}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      {item.title || "无标题"}
                     </a>
                   </h4>
                   <p className="content-time">
-                    发布时间: {item.publishedAt ? DateFormatter.formatAbsolute(item.publishedAt) : '未知'}
+                    发布时间:{" "}
+                    {item.publishedAt
+                      ? DateFormatter.formatAbsolute(item.publishedAt)
+                      : "未知"}
                   </p>
                   {item.metrics && (
                     <div className="content-metrics">
@@ -552,7 +655,8 @@ function UsersView({ users, onClearCache, sortBy, sortOrder, onSortChange, onDel
                       )}
                       {item.metrics.comments && (
                         <span className="metric">
-                          💬 {NumberFormatter.formatLarge(item.metrics.comments)}
+                          💬{" "}
+                          {NumberFormatter.formatLarge(item.metrics.comments)}
                         </span>
                       )}
                     </div>
@@ -588,43 +692,51 @@ function UsersView({ users, onClearCache, sortBy, sortOrder, onSortChange, onDel
               <option value="cacheCount">缓存数量</option>
             </select>
             <button
-              onClick={() => onSortChange(sortBy, sortOrder === 'asc' ? 'desc' : 'asc')}
+              onClick={() =>
+                onSortChange(sortBy, sortOrder === "asc" ? "desc" : "asc")
+              }
               className="user-sort-order"
             >
-              {sortOrder === 'asc' ? '↑' : '↓'}
+              {sortOrder === "asc" ? "↑" : "↓"}
             </button>
           </div>
           <div className="view-actions">
-            {Array.from(new Set(safeUsers.map(u => u.platform))).map(platform => (
-              <button
-                key={platform}
-                onClick={() => onClearCache(platform)}
-                className="clear-cache-btn"
-              >
-                清除 {platform} 缓存
-              </button>
-            ))}
+            {Array.from(new Set(safeUsers.map((u) => u.platform))).map(
+              (platform) => (
+                <button
+                  key={platform}
+                  onClick={() => onClearCache(platform)}
+                  className="clear-cache-btn"
+                >
+                  清除 {platform} 缓存
+                </button>
+              ),
+            )}
           </div>
         </div>
       </div>
 
       <div className="users-grid">
-        {sortedUsers.map(user => (
-          <div key={user.id} className="user-card clickable" onClick={() => handleUserClick(user)}>
+        {sortedUsers.map((user) => (
+          <div
+            key={user.id}
+            className="user-card clickable"
+            onClick={() => handleUserClick(user)}
+          >
             <div className="user-avatar">
               {user.avatar ? (
-                <img src={user.avatar} alt={user.displayName || '用户'} />
+                <img src={user.avatar} alt={user.displayName || "用户"} />
               ) : (
                 <div className="avatar-placeholder">
-                  {(user.displayName || 'U').charAt(0).toUpperCase()}
+                  {(user.displayName || "U").charAt(0).toUpperCase()}
                 </div>
               )}
               {user.verified && <div className="verified-badge">✓</div>}
             </div>
             <div className="user-info">
-              <h4 className="user-name">{user.displayName || '未知用户'}</h4>
-              <p className="user-username">@{user.username || 'unknown'}</p>
-              <p className="user-platform">{user.platform || 'unknown'}</p>
+              <h4 className="user-name">{user.displayName || "未知用户"}</h4>
+              <p className="user-username">@{user.username || "unknown"}</p>
+              <p className="user-platform">{user.platform || "unknown"}</p>
               <div className="user-cache-indicator">
                 <span className="cache-badge">
                   缓存: {userCacheCounts.get(user.id) || 0} 个视频
@@ -633,10 +745,15 @@ function UsersView({ users, onClearCache, sortBy, sortOrder, onSortChange, onDel
             </div>
             <div className="user-actions">
               <a
-                href={`https://www.${user.platform === 'bilibili' ? 'bilibili.com' :
-                                   user.platform === 'youtube' ? 'youtube.com' :
-                                   user.platform === 'twitter' ? 'twitter.com' :
-                                   'instagram.com'}/${user.platformId || ''}`}
+                href={`https://www.${
+                  user.platform === "bilibili"
+                    ? "bilibili.com"
+                    : user.platform === "youtube"
+                      ? "youtube.com"
+                      : user.platform === "twitter"
+                        ? "twitter.com"
+                        : "instagram.com"
+                }/${user.platformId || ""}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="user-link"
@@ -665,10 +782,7 @@ function UsersView({ users, onClearCache, sortBy, sortOrder, onSortChange, onDel
           <div className="confirm-dialog">
             <div className="confirm-dialog-header">
               <h3>确认删除用户</h3>
-              <button
-                className="close-btn"
-                onClick={cancelDeleteUser}
-              >
+              <button className="close-btn" onClick={cancelDeleteUser}>
                 ✕
               </button>
             </div>
@@ -676,7 +790,9 @@ function UsersView({ users, onClearCache, sortBy, sortOrder, onSortChange, onDel
               <p>您确定要删除以下用户吗？</p>
               <div className="user-info-summary">
                 <strong>{deleteConfirmUser.userName}</strong>
-                <span className="platform-tag">{deleteConfirmUser.platform}</span>
+                <span className="platform-tag">
+                  {deleteConfirmUser.platform}
+                </span>
               </div>
               <p className="warning-text">
                 ⚠️ 此操作将删除该用户的所有缓存数据，包括：
@@ -691,16 +807,10 @@ function UsersView({ users, onClearCache, sortBy, sortOrder, onSortChange, onDel
               </p>
             </div>
             <div className="confirm-dialog-actions">
-              <button
-                className="cancel-btn"
-                onClick={cancelDeleteUser}
-              >
+              <button className="cancel-btn" onClick={cancelDeleteUser}>
                 取消
               </button>
-              <button
-                className="delete-btn"
-                onClick={confirmDeleteUser}
-              >
+              <button className="delete-btn" onClick={confirmDeleteUser}>
                 确认删除
               </button>
             </div>
@@ -711,9 +821,13 @@ function UsersView({ users, onClearCache, sortBy, sortOrder, onSortChange, onDel
   );
 }
 
-
 // 统计视图组件
-function StatsView({ config, engineStatus, cacheStats, onClearCache }: {
+function StatsView({
+  config,
+  engineStatus,
+  cacheStats,
+  onClearCache,
+}: {
   config: UserConfig | null;
   engineStatus: any;
   cacheStats: any;
@@ -727,7 +841,7 @@ function StatsView({ config, engineStatus, cacheStats, onClearCache }: {
           <div className="stats-grid">
             <div className="stat-card">
               <h4>启用的平台</h4>
-              <p>{(config.enabledPlatforms || []).join(', ')}</p>
+              <p>{(config.enabledPlatforms || []).join(", ")}</p>
             </div>
             <div className="stat-card">
               <h4>最大内容数量</h4>
@@ -735,15 +849,20 @@ function StatsView({ config, engineStatus, cacheStats, onClearCache }: {
             </div>
             <div className="stat-card">
               <h4>刷新间隔</h4>
-              <p>{config.globalSettings?.refreshInterval ? config.globalSettings.refreshInterval / 60000 : 30} 分钟</p>
+              <p>
+                {config.globalSettings?.refreshInterval
+                  ? config.globalSettings.refreshInterval / 60000
+                  : 30}{" "}
+                分钟
+              </p>
             </div>
             <div className="stat-card">
               <h4>内容洗牌</h4>
-              <p>{config.globalSettings?.shuffleEnabled ? '启用' : '禁用'}</p>
+              <p>{config.globalSettings?.shuffleEnabled ? "启用" : "禁用"}</p>
             </div>
             <div className="stat-card">
               <h4>显示通知</h4>
-              <p>{config.uiSettings.showNotifications ? '启用' : '禁用'}</p>
+              <p>{config.uiSettings.showNotifications ? "启用" : "禁用"}</p>
             </div>
             <div className="stat-card">
               <h4>主题</h4>
@@ -759,8 +878,12 @@ function StatsView({ config, engineStatus, cacheStats, onClearCache }: {
           <div className="stats-grid">
             <div className="stat-card">
               <h4>运行状态</h4>
-              <p className={engineStatus.isRunning ? 'status-running' : 'status-stopped'}>
-                {engineStatus.isRunning ? '运行中' : '已停止'}
+              <p
+                className={
+                  engineStatus.isRunning ? "status-running" : "status-stopped"
+                }
+              >
+                {engineStatus.isRunning ? "运行中" : "已停止"}
               </p>
             </div>
             {engineStatus.lastRefresh > 0 && (
@@ -802,11 +925,12 @@ function StatsView({ config, engineStatus, cacheStats, onClearCache }: {
           </div>
 
           <div className="cache-actions">
-            <button onClick={() => onClearCache()}>
-              清除所有缓存
-            </button>
-            {Object.keys(cacheStats.stats || {}).map(platform => (
-              <button key={platform} onClick={() => onClearCache(platform as Platform)}>
+            <button onClick={() => onClearCache()}>清除所有缓存</button>
+            {Object.keys(cacheStats.stats || {}).map((platform) => (
+              <button
+                key={platform}
+                onClick={() => onClearCache(platform as Platform)}
+              >
                 清除 {platform} 缓存
               </button>
             ))}
@@ -818,7 +942,7 @@ function StatsView({ config, engineStatus, cacheStats, onClearCache }: {
 }
 
 // 渲染应用
-const container = document.getElementById('app');
+const container = document.getElementById("app");
 if (container) {
   const root = createRoot(container);
   root.render(<Dashboard />);

@@ -1,5 +1,5 @@
-import type { CacheItem, UserConfig, Platform, PlatformConfig } from '../types';
-import { STORAGE_KEYS, CACHE_CONFIG, DEFAULT_CONFIG } from '../constants';
+import type { CacheItem, UserConfig, Platform, PlatformConfig } from "../types";
+import { STORAGE_KEYS, CACHE_CONFIG, DEFAULT_CONFIG } from "../constants";
 
 // Chrome存储工具
 export class StorageManager {
@@ -20,35 +20,37 @@ export class StorageManager {
         const migrationResult = await chrome.storage.sync.get(migrationKey);
 
         if (migrationResult[migrationKey]) {
-          console.log('[StorageManager] 配置已迁移过，跳过迁移步骤');
+          console.log("[StorageManager] 配置已迁移过，跳过迁移步骤");
           // 如果配置结构已经是新的，直接返回；否则进行合并
           if ((savedConfig as any).platformSettings) {
             return this.mergeWithDefaults(savedConfig);
           } else {
             // 特殊情况：有迁移标记但配置结构还是旧的，直接进行迁移
-            console.log('[StorageManager] 特殊情况：有迁移标记但配置结构异常，重新迁移');
+            console.log(
+              "[StorageManager] 特殊情况：有迁移标记但配置结构异常，重新迁移",
+            );
             const migratedConfig = this.migrateLegacyConfig(savedConfig);
             return migratedConfig;
           }
         }
 
-        console.log('[StorageManager] 检测到旧版本配置，正在迁移...');
+        console.log("[StorageManager] 检测到旧版本配置，正在迁移...");
         const migratedConfig = this.migrateLegacyConfig(savedConfig);
 
         // 直接保存到Chrome存储，避免触发ConfigManager的setConfig流程
         await chrome.storage.sync.set({
           [STORAGE_KEYS.CONFIG]: migratedConfig,
-          [migrationKey]: true // 标记已迁移
+          [migrationKey]: true, // 标记已迁移
         });
 
-        console.log('[StorageManager] 配置迁移完成并已保存');
+        console.log("[StorageManager] 配置迁移完成并已保存");
         return migratedConfig;
       }
 
       // 合并新配置项（确保新增字段有默认值）
       return this.mergeWithDefaults(savedConfig);
     } catch (error) {
-      console.error('获取配置失败:', error);
+      console.error("获取配置失败:", error);
       return { ...DEFAULT_CONFIG };
     }
   }
@@ -62,7 +64,7 @@ export class StorageManager {
         [STORAGE_KEYS.CONFIG]: newConfig,
       });
     } catch (error) {
-      console.error('设置配置失败:', error);
+      console.error("设置配置失败:", error);
       throw error;
     }
   }
@@ -83,7 +85,7 @@ export class StorageManager {
 
       return cacheItem.data;
     } catch (error) {
-      console.error('获取缓存失败:', error);
+      console.error("获取缓存失败:", error);
       return null;
     }
   }
@@ -92,7 +94,7 @@ export class StorageManager {
   static async setCache<T>(
     key: string,
     data: T,
-    ttl: number = CACHE_CONFIG.CONTENT
+    ttl: number = CACHE_CONFIG.CONTENT,
   ): Promise<void> {
     try {
       const cacheItem: CacheItem<T> = {
@@ -109,7 +111,7 @@ export class StorageManager {
       // 清理过期缓存
       await this.cleanExpiredCache();
     } catch (error) {
-      console.error('设置缓存失败:', error);
+      console.error("设置缓存失败:", error);
       throw error;
     }
   }
@@ -119,7 +121,7 @@ export class StorageManager {
     try {
       await chrome.storage.local.remove(key);
     } catch (error) {
-      console.error('删除缓存失败:', error);
+      console.error("删除缓存失败:", error);
     }
   }
 
@@ -130,7 +132,11 @@ export class StorageManager {
       const keysToRemove: string[] = [];
 
       Object.entries(allItems).forEach(([key, value]) => {
-        if (key.startsWith('onlyfocus_') && typeof value === 'object' && value !== null) {
+        if (
+          key.startsWith("onlyfollow_") &&
+          typeof value === "object" &&
+          value !== null
+        ) {
           const cacheItem = value as CacheItem;
           if (Date.now() > cacheItem.expiresAt) {
             keysToRemove.push(key);
@@ -142,7 +148,7 @@ export class StorageManager {
         await chrome.storage.local.remove(keysToRemove);
       }
     } catch (error) {
-      console.error('清理过期缓存失败:', error);
+      console.error("清理过期缓存失败:", error);
     }
   }
 
@@ -150,13 +156,15 @@ export class StorageManager {
   static async clearAllCache(): Promise<void> {
     try {
       const allItems = await chrome.storage.local.get();
-      const keysToRemove = Object.keys(allItems).filter(key => key.startsWith('onlyfocus_'));
+      const keysToRemove = Object.keys(allItems).filter((key) =>
+        key.startsWith("onlyfollow_"),
+      );
 
       if (keysToRemove.length > 0) {
         await chrome.storage.local.remove(keysToRemove);
       }
     } catch (error) {
-      console.error('清空缓存失败:', error);
+      console.error("清空缓存失败:", error);
       throw error;
     }
   }
@@ -168,7 +176,11 @@ export class StorageManager {
       const stats: Record<string, number> = {};
 
       Object.entries(allItems).forEach(([key, value]) => {
-        if (key.startsWith('onlyfocus_') && typeof value === 'object' && value !== null) {
+        if (
+          key.startsWith("onlyfollow_") &&
+          typeof value === "object" &&
+          value !== null
+        ) {
           const cacheItem = value as CacheItem;
           const platform = cacheItem.platform;
           stats[platform] = (stats[platform] || 0) + 1;
@@ -177,19 +189,23 @@ export class StorageManager {
 
       return stats;
     } catch (error) {
-      console.error('获取缓存统计失败:', error);
+      console.error("获取缓存统计失败:", error);
       return {};
     }
   }
 
   // 从键名提取平台信息
   private static extractPlatformFromKey(key: string): any {
-    const platformMatch = key.match(/onlyfocus_(\w+)_/);
-    return platformMatch ? platformMatch[1] : 'unknown';
+    const platformMatch = key.match(/onlyfollow_(\w+)_/);
+    return platformMatch ? platformMatch[1] : "unknown";
   }
 
   // 检查存储空间
-  static async getStorageUsage(): Promise<{ used: number; available: number; percentage: number }> {
+  static async getStorageUsage(): Promise<{
+    used: number;
+    available: number;
+    percentage: number;
+  }> {
     try {
       const usage = await chrome.storage.local.getBytesInUse();
       const quota = 5242880; // 5MB 限制
@@ -200,7 +216,7 @@ export class StorageManager {
         percentage: (usage / quota) * 100,
       };
     } catch (error) {
-      console.error('获取存储使用情况失败:', error);
+      console.error("获取存储使用情况失败:", error);
       return { used: 0, available: 0, percentage: 0 };
     }
   }
@@ -217,7 +233,11 @@ export class StorageManager {
 
   // 迁移旧版本配置
   private static migrateLegacyConfig(legacyConfig: any): UserConfig {
-    const { contentSettings = {}, uiSettings = {}, enabledPlatforms = [] } = legacyConfig;
+    const {
+      contentSettings = {},
+      uiSettings = {},
+      enabledPlatforms = [],
+    } = legacyConfig;
 
     // 提取全局设置
     const globalSettings = {
@@ -228,13 +248,18 @@ export class StorageManager {
 
     // 为每个平台创建配置
     const platformSettings: Record<string, any> = {};
-    const allPlatforms: Platform[] = ['bilibili', 'youtube', 'twitter', 'instagram'];
+    const allPlatforms: Platform[] = [
+      "bilibili",
+      "youtube",
+      "twitter",
+      "instagram",
+    ];
 
-    allPlatforms.forEach(platform => {
+    allPlatforms.forEach((platform) => {
       const isPlatformEnabled = enabledPlatforms.includes(platform);
 
       // 根据平台特性设置不同的默认值
-      if (platform === 'bilibili') {
+      if (platform === "bilibili") {
         platformSettings[platform] = {
           enabled: isPlatformEnabled,
           requestDelay: contentSettings.requestDelay || 5000,
@@ -245,7 +270,7 @@ export class StorageManager {
             safeMode: true,
           },
         };
-      } else if (platform === 'youtube') {
+      } else if (platform === "youtube") {
         platformSettings[platform] = {
           enabled: isPlatformEnabled,
           requestDelay: 1000,
@@ -254,7 +279,7 @@ export class StorageManager {
           maxItems: 30,
           customSettings: {},
         };
-      } else if (platform === 'twitter') {
+      } else if (platform === "twitter") {
         platformSettings[platform] = {
           enabled: isPlatformEnabled,
           requestDelay: 2000,
@@ -263,7 +288,7 @@ export class StorageManager {
           maxItems: 25,
           customSettings: {},
         };
-      } else if (platform === 'instagram') {
+      } else if (platform === "instagram") {
         platformSettings[platform] = {
           enabled: isPlatformEnabled,
           requestDelay: 3000,
@@ -281,18 +306,19 @@ export class StorageManager {
       platformSettings: platformSettings as any,
       uiSettings: {
         showNotifications: uiSettings.showNotifications ?? true,
-        theme: uiSettings.theme || 'auto',
+        theme: uiSettings.theme || "auto",
       },
     };
 
-    console.log('[StorageManager] 配置迁移完成:', migratedConfig);
+    console.log("[StorageManager] 配置迁移完成:", migratedConfig);
     return migratedConfig;
   }
 
   // 合并配置与默认值
   private static mergeWithDefaults(config: Partial<UserConfig>): UserConfig {
     const merged: UserConfig = {
-      enabledPlatforms: config.enabledPlatforms || DEFAULT_CONFIG.enabledPlatforms,
+      enabledPlatforms:
+        config.enabledPlatforms || DEFAULT_CONFIG.enabledPlatforms,
       globalSettings: {
         ...DEFAULT_CONFIG.globalSettings,
         ...config.globalSettings,
@@ -306,13 +332,14 @@ export class StorageManager {
 
     // 合并平台设置
     if (config.platformSettings) {
-      Object.keys(config.platformSettings).forEach(platform => {
+      Object.keys(config.platformSettings).forEach((platform) => {
         if (DEFAULT_CONFIG.platformSettings[platform as Platform]) {
           merged.platformSettings[platform as Platform] = {
             ...DEFAULT_CONFIG.platformSettings[platform as Platform],
             ...config.platformSettings![platform as Platform],
             customSettings: {
-              ...DEFAULT_CONFIG.platformSettings[platform as Platform].customSettings,
+              ...DEFAULT_CONFIG.platformSettings[platform as Platform]
+                .customSettings,
               ...config.platformSettings![platform as Platform]?.customSettings,
             },
           };
@@ -332,16 +359,16 @@ export class StorageManager {
       ];
 
       await chrome.storage.sync.remove(keysToRemove);
-      console.log('[StorageManager] 迁移数据清理完成');
+      console.log("[StorageManager] 迁移数据清理完成");
     } catch (error) {
-      console.error('[StorageManager] 清理迁移数据失败:', error);
+      console.error("[StorageManager] 清理迁移数据失败:", error);
     }
   }
 
   // 强制重新迁移配置（用于调试）
   static async forceRemigration(): Promise<void> {
     try {
-      console.log('[StorageManager] 强制重新迁移配置...');
+      console.log("[StorageManager] 强制重新迁移配置...");
 
       // 删除迁移标记
       await chrome.storage.sync.remove(`${STORAGE_KEYS.CONFIG}_migrated_v2`);
@@ -352,18 +379,18 @@ export class StorageManager {
 
       if (currentConfig && (currentConfig as any).contentSettings) {
         // 检测到旧格式配置，强制迁移
-        console.log('[StorageManager] 检测到旧格式配置，执行强制迁移...');
+        console.log("[StorageManager] 检测到旧格式配置，执行强制迁移...");
 
         // 删除旧配置
         await chrome.storage.sync.remove(STORAGE_KEYS.CONFIG);
 
         // 重新迁移会在下次getConfig时自动触发
-        console.log('[StorageManager] 旧配置已删除，下次加载时将自动迁移');
+        console.log("[StorageManager] 旧配置已删除，下次加载时将自动迁移");
       } else {
-        console.log('[StorageManager] 配置已是新格式，无需迁移');
+        console.log("[StorageManager] 配置已是新格式，无需迁移");
       }
     } catch (error) {
-      console.error('[StorageManager] 强制重新迁移失败:', error);
+      console.error("[StorageManager] 强制重新迁移失败:", error);
       throw error;
     }
   }
@@ -376,27 +403,38 @@ export class StorageManager {
 
       // 查找与用户相关的缓存键
       for (const key of Object.keys(allItems)) {
-        if (key.startsWith('onlyfocus_')) {
+        if (key.startsWith("onlyfollow_")) {
           // 删除用户的视频内容缓存
-          if (key.includes('_videos_') && key.includes(userId)) {
+          if (key.includes("_videos_") && key.includes(userId)) {
             keysToRemove.push(key);
           }
           // 删除用户关注关系缓存中包含该用户的条目
-          else if (key.includes('_followings_')) {
+          else if (key.includes("_followings_")) {
             try {
               const followingsData = allItems[key];
-              if (followingsData && followingsData.data && Array.isArray(followingsData.data)) {
-                const filteredFollowings = followingsData.data.filter((user: any) => user.id !== userId);
+              if (
+                followingsData &&
+                followingsData.data &&
+                Array.isArray(followingsData.data)
+              ) {
+                const filteredFollowings = followingsData.data.filter(
+                  (user: any) => user.id !== userId,
+                );
                 if (filteredFollowings.length !== followingsData.data.length) {
                   // 更新关注列表，移除该用户
                   followingsData.data = filteredFollowings;
                   followingsData.updatedAt = Date.now();
                   await chrome.storage.local.set({ [key]: followingsData });
-                  console.log(`[StorageManager] 已从关注列表 ${key} 中移除用户 ${userId}`);
+                  console.log(
+                    `[StorageManager] 已从关注列表 ${key} 中移除用户 ${userId}`,
+                  );
                 }
               }
             } catch (error) {
-              console.error(`[StorageManager] 处理关注列表 ${key} 时出错:`, error);
+              console.error(
+                `[StorageManager] 处理关注列表 ${key} 时出错:`,
+                error,
+              );
             }
           }
         }
@@ -404,9 +442,11 @@ export class StorageManager {
 
       // 如果指定了平台，也删除该平台的相关缓存（仅限该用户）
       if (platform) {
-        const platformKeys = Object.keys(allItems).filter(key =>
-          key.startsWith(`onlyfocus_${platform}_`) &&
-          (key.includes(userId) || (key.includes('_videos_') && key.includes(userId)))
+        const platformKeys = Object.keys(allItems).filter(
+          (key) =>
+            key.startsWith(`onlyfollow_${platform}_`) &&
+            (key.includes(userId) ||
+              (key.includes("_videos_") && key.includes(userId))),
         );
         keysToRemove.push(...platformKeys);
       }
@@ -414,7 +454,10 @@ export class StorageManager {
       // 删除找到的键
       if (keysToRemove.length > 0) {
         await chrome.storage.local.remove(keysToRemove);
-        console.log(`[StorageManager] 已删除用户 ${userId} 的相关数据:`, keysToRemove);
+        console.log(
+          `[StorageManager] 已删除用户 ${userId} 的相关数据:`,
+          keysToRemove,
+        );
       }
 
       console.log(`[StorageManager] 用户 ${userId} 删除完成`);
@@ -430,24 +473,33 @@ export class StorageManager {
       const allItems = await chrome.storage.local.get();
       const userKeys: string[] = [];
 
-      Object.keys(allItems).forEach(key => {
-        if (key.startsWith('onlyfocus_')) {
+      Object.keys(allItems).forEach((key) => {
+        if (key.startsWith("onlyfollow_")) {
           // 查找包含用户ID的视频缓存键
-          if (key.includes('_videos_') && key.includes(userId)) {
+          if (key.includes("_videos_") && key.includes(userId)) {
             userKeys.push(key);
           }
           // 查找可能包含该用户的关注缓存键
-          else if (key.includes('_followings_')) {
+          else if (key.includes("_followings_")) {
             try {
               const followingsData = allItems[key];
-              if (followingsData && followingsData.data && Array.isArray(followingsData.data)) {
-                const hasUser = followingsData.data.some((user: any) => user.id === userId);
+              if (
+                followingsData &&
+                followingsData.data &&
+                Array.isArray(followingsData.data)
+              ) {
+                const hasUser = followingsData.data.some(
+                  (user: any) => user.id === userId,
+                );
                 if (hasUser) {
                   userKeys.push(key);
                 }
               }
             } catch (error) {
-              console.error(`[StorageManager] 检查关注列表 ${key} 时出错:`, error);
+              console.error(
+                `[StorageManager] 检查关注列表 ${key} 时出错:`,
+                error,
+              );
             }
           }
         }
@@ -488,7 +540,7 @@ export class LocalStorageManager {
       };
       localStorage.setItem(key, JSON.stringify(item));
     } catch (error) {
-      console.error('设置本地存储失败:', error);
+      console.error("设置本地存储失败:", error);
     }
   }
 
@@ -497,8 +549,8 @@ export class LocalStorageManager {
   }
 
   static clear(): void {
-    Object.keys(localStorage).forEach(key => {
-      if (key.startsWith('onlyfocus_')) {
+    Object.keys(localStorage).forEach((key) => {
+      if (key.startsWith("onlyfollow_")) {
         localStorage.removeItem(key);
       }
     });

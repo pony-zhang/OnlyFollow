@@ -225,8 +225,8 @@ export class BilibiliAdapter implements PlatformAdapter {
         chrome.storage &&
         chrome.storage.local
       ) {
-        const result = await chrome.storage.local.get("onlyfocus_config");
-        const config = result.onlyfocus_config;
+        const result = await chrome.storage.local.get("onlyfollow_config");
+        const config = result.onlyfollow_config;
 
         // 优先使用新的平台特定配置，如果不存在则尝试旧配置
         if (config?.platformSettings?.bilibili?.requestDelay) {
@@ -283,7 +283,7 @@ export class BilibiliAdapter implements PlatformAdapter {
       throw new Error(ERROR_MESSAGES.NOT_LOGGED_IN);
     }
 
-    const cacheKey = `onlyfocus_bilibili_followings_${uid}`;
+    const cacheKey = `onlyfollow_bilibili_followings_${uid}`;
     const cached = await StorageManager.getCache<FollowedUser[]>(cacheKey);
 
     if (cached) {
@@ -418,7 +418,7 @@ export class BilibiliAdapter implements PlatformAdapter {
     userId: string,
     limit: number = this.videosPerUp,
   ): Promise<ContentItem[]> {
-    const cacheKey = `onlyfocus_bilibili_videos_${userId}`;
+    const cacheKey = `onlyfollow_bilibili_videos_${userId}`;
     const cached = await StorageManager.getCache<ContentItem[]>(cacheKey);
 
     if (cached) {
@@ -561,7 +561,7 @@ export class BilibiliAdapter implements PlatformAdapter {
       const user = selectedUsers[i];
 
       try {
-        const cacheKey = `onlyfocus_bilibili_videos_${user.platformId}`;
+        const cacheKey = `onlyfollow_bilibili_videos_${user.platformId}`;
         const cached = await StorageManager.getCache<ContentItem[]>(cacheKey);
 
         if (cached) {
@@ -593,11 +593,10 @@ export class BilibiliAdapter implements PlatformAdapter {
         await this.replaceContent(cachedVideos);
 
         // 记录已显示的视频ID
-        cachedVideos.forEach(video => this.displayedVideoIds.add(video.id));
+        cachedVideos.forEach((video) => this.displayedVideoIds.add(video.id));
 
         // 初始化换一换按钮功能
         await this.initializeRefreshButton();
-
       } catch (error) {
         console.error("[Bilibili] 使用缓存视频替换内容失败:", error);
       }
@@ -921,42 +920,52 @@ export class BilibiliAdapter implements PlatformAdapter {
   }
 
   // 增量更新视频缓存
-  private async incrementalUpdateVideoCache(userId: string, newVideos: ContentItem[]): Promise<void> {
-    const cacheKey = `onlyfocus_bilibili_videos_${userId}`;
+  private async incrementalUpdateVideoCache(
+    userId: string,
+    newVideos: ContentItem[],
+  ): Promise<void> {
+    const cacheKey = `onlyfollow_bilibili_videos_${userId}`;
 
     try {
       // 1. 获取现有缓存
-      const existingCache = await StorageManager.getCache<ContentItem[]>(cacheKey);
+      const existingCache =
+        await StorageManager.getCache<ContentItem[]>(cacheKey);
       let mergedVideos: ContentItem[] = [];
 
       if (existingCache && existingCache.length > 0) {
-        console.log(`[Bilibili] UP ${userId} 现有缓存: ${existingCache.length} 个视频`);
+        console.log(
+          `[Bilibili] UP ${userId} 现有缓存: ${existingCache.length} 个视频`,
+        );
 
         // 2. 创建现有视频的ID映射，用于快速查找
         const existingVideoMap = new Map<string, ContentItem>();
-        existingCache.forEach(video => {
+        existingCache.forEach((video) => {
           existingVideoMap.set(video.id, video);
         });
 
         // 3. 合并新旧视频，去重并按时间排序
         const newVideoMap = new Map<string, ContentItem>();
-        newVideos.forEach(video => {
+        newVideos.forEach((video) => {
           newVideoMap.set(video.id, video);
         });
 
         // 4. 合并逻辑：保留所有视频，但新视频优先
         mergedVideos = Array.from(
-          new Map([...existingVideoMap, ...newVideoMap]).values()
+          new Map([...existingVideoMap, ...newVideoMap]).values(),
         );
 
         // 5. 按发布时间降序排序（最新的在前）
         mergedVideos.sort((a, b) => b.publishedAt - a.publishedAt);
 
-        console.log(`[Bilibili] UP ${userId} 增量更新完成: 合并后总计 ${mergedVideos.length} 个视频 (新增: ${newVideos.length} 个)`);
+        console.log(
+          `[Bilibili] UP ${userId} 增量更新完成: 合并后总计 ${mergedVideos.length} 个视频 (新增: ${newVideos.length} 个)`,
+        );
       } else {
         // 6. 如果没有现有缓存，直接使用新视频
         mergedVideos = newVideos;
-        console.log(`[Bilibili] UP ${userId} 首次缓存: ${mergedVideos.length} 个视频`);
+        console.log(
+          `[Bilibili] UP ${userId} 首次缓存: ${mergedVideos.length} 个视频`,
+        );
       }
 
       // 7. 保存合并后的视频池（使用2周TTL）
@@ -968,7 +977,6 @@ export class BilibiliAdapter implements PlatformAdapter {
 
       // 8. 更新内存中的缓存池（如果正在使用换一换功能）
       await this.refreshMemoryCache(userId, mergedVideos);
-
     } catch (error) {
       console.error(`[Bilibili] 增量更新UP ${userId} 缓存失败:`, error);
       // 降级处理：直接保存新视频
@@ -977,24 +985,33 @@ export class BilibiliAdapter implements PlatformAdapter {
   }
 
   // 刷新内存中的缓存池（用于换一换功能）
-  private async refreshMemoryCache(userId: string, updatedVideos: ContentItem[]): Promise<void> {
+  private async refreshMemoryCache(
+    userId: string,
+    updatedVideos: ContentItem[],
+  ): Promise<void> {
     // 如果当前内存中有缓存，需要同步更新
     if (this.currentCachedVideos.length > 0) {
       // 获取当前用户的旧视频ID集合
-      const oldUserVideos = this.currentCachedVideos.filter(v =>
-        v.author.platformId === userId
+      const oldUserVideos = this.currentCachedVideos.filter(
+        (v) => v.author.platformId === userId,
       );
 
       if (oldUserVideos.length > 0) {
         // 移除该用户的旧视频
-        const oldVideoIds = new Set(oldUserVideos.map(v => v.id));
-        this.currentCachedVideos = this.currentCachedVideos.filter(v => !oldVideoIds.has(v.id));
+        const oldVideoIds = new Set(oldUserVideos.map((v) => v.id));
+        this.currentCachedVideos = this.currentCachedVideos.filter(
+          (v) => !oldVideoIds.has(v.id),
+        );
 
         // 添加更新后的视频（但排除已显示过的）
-        const newVideosForMemory = updatedVideos.filter(v => !this.displayedVideoIds.has(v.id));
+        const newVideosForMemory = updatedVideos.filter(
+          (v) => !this.displayedVideoIds.has(v.id),
+        );
         this.currentCachedVideos.push(...newVideosForMemory);
 
-        console.log(`[Bilibili] 内存缓存同步更新: 移除 ${oldUserVideos.length} 个旧视频，添加 ${newVideosForMemory.length} 个新视频`);
+        console.log(
+          `[Bilibili] 内存缓存同步更新: 移除 ${oldUserVideos.length} 个旧视频，添加 ${newVideosForMemory.length} 个新视频`,
+        );
       }
     }
   }
@@ -1224,7 +1241,9 @@ export class BilibiliAdapter implements PlatformAdapter {
       // 2. 查找并劫持换一换按钮
       await this.hijackRefreshButton();
 
-      console.log(`[Bilibili] 换一换按钮初始化完成，可用缓存视频: ${this.currentCachedVideos.length} 个`);
+      console.log(
+        `[Bilibili] 换一换按钮初始化完成，可用缓存视频: ${this.currentCachedVideos.length} 个`,
+      );
     } catch (error) {
       console.error("[Bilibili] 初始化换一换按钮失败:", error);
     }
@@ -1241,14 +1260,16 @@ export class BilibiliAdapter implements PlatformAdapter {
 
       // 遍历每个UP主的缓存
       for (const user of followedUsers) {
-        const cacheKey = `onlyfocus_bilibili_videos_${user.platformId}`;
+        const cacheKey = `onlyfollow_bilibili_videos_${user.platformId}`;
         const cached = await StorageManager.getCache<ContentItem[]>(cacheKey);
 
         if (cached && cached.length > 0) {
-          console.log(`[Bilibili] UP ${user.displayName}: ${cached.length} 个缓存视频`);
+          console.log(
+            `[Bilibili] UP ${user.displayName}: ${cached.length} 个缓存视频`,
+          );
 
           // 添加到全局映射，自动去重
-          cached.forEach(video => {
+          cached.forEach((video) => {
             if (!videoMap.has(video.id)) {
               videoMap.set(video.id, video);
             }
@@ -1263,7 +1284,9 @@ export class BilibiliAdapter implements PlatformAdapter {
       allVideos.sort((a, b) => b.publishedAt - a.publishedAt);
 
       // 过滤掉已显示的视频，确保换一换能显示新内容
-      const availableVideos = allVideos.filter(video => !this.displayedVideoIds.has(video.id));
+      const availableVideos = allVideos.filter(
+        (video) => !this.displayedVideoIds.has(video.id),
+      );
 
       this.currentCachedVideos = availableVideos;
 
@@ -1275,9 +1298,10 @@ export class BilibiliAdapter implements PlatformAdapter {
 
       // 如果可用视频不足，给出警告
       if (availableVideos.length < this.totalVideosNeeded) {
-        console.warn(`[Bilibili] ⚠️ 可用缓存视频不足 (需要${this.totalVideosNeeded}个，当前${availableVideos.length}个)，建议等待更多缓存更新`);
+        console.warn(
+          `[Bilibili] ⚠️ 可用缓存视频不足 (需要${this.totalVideosNeeded}个，当前${availableVideos.length}个)，建议等待更多缓存更新`,
+        );
       }
-
     } catch (error) {
       console.error("[Bilibili] 收集缓存视频失败:", error);
       this.currentCachedVideos = [];
@@ -1289,7 +1313,10 @@ export class BilibiliAdapter implements PlatformAdapter {
     console.log("[Bilibili] 查找换一换按钮...");
 
     // 等待按钮出现，最多等待10秒
-    const button = await DOMUtils.waitForElement('.primary-btn.roll-btn', 10000);
+    const button = await DOMUtils.waitForElement(
+      ".primary-btn.roll-btn",
+      10000,
+    );
 
     if (!button) {
       console.log("[Bilibili] 未找到换一换按钮");
@@ -1304,14 +1331,14 @@ export class BilibiliAdapter implements PlatformAdapter {
 
     // 添加新的事件处理器
     this.refreshButtonHandler = () => this.handleRefreshClick();
-    newButton.addEventListener('click', this.refreshButtonHandler);
+    newButton.addEventListener("click", this.refreshButtonHandler);
 
     // 修改按钮样式，表示功能已改变
-    newButton.style.backgroundColor = '#00a1d6'; // B站蓝色
+    newButton.style.backgroundColor = "#00a1d6"; // B站蓝色
     newButton.title = "从缓存视频中换一批新的内容";
 
     // 添加视觉标识
-    const span = newButton.querySelector('span');
+    const span = newButton.querySelector("span");
     if (span) {
       span.textContent = "缓存换一换";
     }
@@ -1326,14 +1353,18 @@ export class BilibiliAdapter implements PlatformAdapter {
     try {
       // 1. 检查是否需要重新收集缓存或重置显示记录
       if (this.currentCachedVideos.length < this.totalVideosNeeded) {
-        console.log(`[Bilibili] 可用缓存视频不足 (${this.currentCachedVideos.length}/${this.totalVideosNeeded})，尝试智能补充...`);
+        console.log(
+          `[Bilibili] 可用缓存视频不足 (${this.currentCachedVideos.length}/${this.totalVideosNeeded})，尝试智能补充...`,
+        );
 
         // 先尝试重新收集（可能后台更新了新的缓存）
         await this.collectAllCachedVideos();
 
         // 如果仍然不足，考虑重置显示记录
         if (this.currentCachedVideos.length < this.totalVideosNeeded) {
-          console.log(`[Bilibili] 缓存视频仍然不足，检查是否需要重置显示记录...`);
+          console.log(
+            `[Bilibili] 缓存视频仍然不足，检查是否需要重置显示记录...`,
+          );
           await this.intelligentResetDisplayHistory();
         }
       }
@@ -1345,7 +1376,10 @@ export class BilibiliAdapter implements PlatformAdapter {
       }
 
       // 3. 智能选择视频（优先选择最新的）
-      const newVideos = this.selectVideosSmartly(this.currentCachedVideos, this.totalVideosNeeded);
+      const newVideos = this.selectVideosSmartly(
+        this.currentCachedVideos,
+        this.totalVideosNeeded,
+      );
 
       if (newVideos.length === 0) {
         this.showMessage("缓存视频暂时不可用，请稍后重试");
@@ -1353,9 +1387,11 @@ export class BilibiliAdapter implements PlatformAdapter {
       }
 
       // 4. 记录显示历史并更新缓存池
-      newVideos.forEach(video => this.displayedVideoIds.add(video.id));
-      const usedIds = new Set(newVideos.map(v => v.id));
-      this.currentCachedVideos = this.currentCachedVideos.filter(v => !usedIds.has(v.id));
+      newVideos.forEach((video) => this.displayedVideoIds.add(video.id));
+      const usedIds = new Set(newVideos.map((v) => v.id));
+      this.currentCachedVideos = this.currentCachedVideos.filter(
+        (v) => !usedIds.has(v.id),
+      );
 
       // 5. 替换页面内容
       await this.replaceContent(newVideos);
@@ -1378,7 +1414,6 @@ export class BilibiliAdapter implements PlatformAdapter {
       console.log(`  - 本次显示: ${newVideos.length} 个视频`);
       console.log(`  - 剩余可用: ${remainingCount} 个视频`);
       console.log(`  - 历史总计: ${totalHistoryCount} 个已显示`);
-
     } catch (error) {
       console.error("[Bilibili] 换一换处理失败:", error);
       this.showMessage("换一换失败，请稍后重试");
@@ -1395,58 +1430,74 @@ export class BilibiliAdapter implements PlatformAdapter {
       let totalCachedVideos = 0;
 
       for (const user of followedUsers) {
-        const cacheKey = `onlyfocus_bilibili_videos_${user.platformId}`;
+        const cacheKey = `onlyfollow_bilibili_videos_${user.platformId}`;
         const cached = await StorageManager.getCache<ContentItem[]>(cacheKey);
         if (cached) {
           totalCachedVideos += cached.length;
         }
       }
 
-      console.log(`[Bilibili] 缓存统计: 总缓存 ${totalCachedVideos} 个，已显示 ${this.displayedVideoIds.size} 个`);
+      console.log(
+        `[Bilibili] 缓存统计: 总缓存 ${totalCachedVideos} 个，已显示 ${this.displayedVideoIds.size} 个`,
+      );
 
       // 重置条件：
       // 1. 已显示视频数量 >= 总缓存数量的80%，或者
       // 2. 已显示视频数量 > 200，且剩余可用视频 < 20
-      const displayRatio = this.displayedVideoIds.size / Math.max(totalCachedVideos, 1);
-      const shouldReset = displayRatio >= 0.8 || (this.displayedVideoIds.size > 200 && this.currentCachedVideos.length < 20);
+      const displayRatio =
+        this.displayedVideoIds.size / Math.max(totalCachedVideos, 1);
+      const shouldReset =
+        displayRatio >= 0.8 ||
+        (this.displayedVideoIds.size > 200 &&
+          this.currentCachedVideos.length < 20);
 
       if (shouldReset) {
-        console.log(`[Bilibili] 执行智能重置: 显示比例 ${(displayRatio * 100).toFixed(1)}%，触发重置`);
+        console.log(
+          `[Bilibili] 执行智能重置: 显示比例 ${(displayRatio * 100).toFixed(1)}%，触发重置`,
+        );
 
         // 保留最近50个显示记录，其他的清空
         const recentIds = Array.from(this.displayedVideoIds).slice(-50);
         this.displayedVideoIds.clear();
-        recentIds.forEach(id => this.displayedVideoIds.add(id));
+        recentIds.forEach((id) => this.displayedVideoIds.add(id));
 
         // 重新收集可用视频
         await this.collectAllCachedVideos();
 
-        console.log(`[Bilibili] 重置完成: 保留最近50个记录，可用视频 ${this.currentCachedVideos.length} 个`);
+        console.log(
+          `[Bilibili] 重置完成: 保留最近50个记录，可用视频 ${this.currentCachedVideos.length} 个`,
+        );
         this.showMessage("已重置历史记录，可重新浏览之前的内容");
       } else {
-        console.log(`[Bilibili] 暂不重置: 显示比例 ${(displayRatio * 100).toFixed(1)}%，条件未满足`);
+        console.log(
+          `[Bilibili] 暂不重置: 显示比例 ${(displayRatio * 100).toFixed(1)}%，条件未满足`,
+        );
       }
-
     } catch (error) {
       console.error("[Bilibili] 智能重置失败:", error);
       // 降级处理：如果重置失败，简单清空一半的历史记录
       const halfSize = Math.floor(this.displayedVideoIds.size / 2);
       const ids = Array.from(this.displayedVideoIds);
       this.displayedVideoIds.clear();
-      ids.slice(halfSize).forEach(id => this.displayedVideoIds.add(id));
+      ids.slice(halfSize).forEach((id) => this.displayedVideoIds.add(id));
 
       await this.collectAllCachedVideos();
     }
   }
 
   // 智能选择视频（考虑时间和多样性）
-  private selectVideosSmartly(availableVideos: ContentItem[], count: number): ContentItem[] {
+  private selectVideosSmartly(
+    availableVideos: ContentItem[],
+    count: number,
+  ): ContentItem[] {
     if (availableVideos.length <= count) {
       return [...availableVideos];
     }
 
     // 按发布时间排序，确保优先显示较新的内容
-    const sortedVideos = [...availableVideos].sort((a, b) => b.publishedAt - a.publishedAt);
+    const sortedVideos = [...availableVideos].sort(
+      (a, b) => b.publishedAt - a.publishedAt,
+    );
 
     // 前50%选最新，后50%随机选择，保证新鲜感和多样性
     const latestCount = Math.ceil(count * 0.5);
@@ -1466,7 +1517,7 @@ export class BilibiliAdapter implements PlatformAdapter {
   // 显示临时提示信息
   private showMessage(message: string): void {
     // 创建提示元素
-    const toast = document.createElement('div');
+    const toast = document.createElement("div");
     toast.textContent = message;
     toast.style.cssText = `
       position: fixed;
@@ -1485,7 +1536,7 @@ export class BilibiliAdapter implements PlatformAdapter {
 
     // 3秒后自动消失
     setTimeout(() => {
-      toast.style.opacity = '0';
+      toast.style.opacity = "0";
       setTimeout(() => {
         document.body.removeChild(toast);
       }, 300);
@@ -1497,9 +1548,9 @@ export class BilibiliAdapter implements PlatformAdapter {
     console.log("[Bilibili] 清理换一换按钮功能...");
 
     if (this.refreshButtonHandler) {
-      const button = document.querySelector('.primary-btn.roll-btn');
+      const button = document.querySelector(".primary-btn.roll-btn");
       if (button) {
-        button.removeEventListener('click', this.refreshButtonHandler);
+        button.removeEventListener("click", this.refreshButtonHandler);
       }
       this.refreshButtonHandler = null;
     }
@@ -1519,31 +1570,40 @@ export class BilibiliAdapter implements PlatformAdapter {
       const staleThreshold = 30 * 24 * 60 * 60 * 1000; // 30天
 
       for (const user of followedUsers) {
-        const cacheKey = `onlyfocus_bilibili_videos_${user.platformId}`;
+        const cacheKey = `onlyfollow_bilibili_videos_${user.platformId}`;
         const cached = await StorageManager.getCache<ContentItem[]>(cacheKey);
 
         if (cached && cached.length > 0) {
           // 过滤掉超过30天的旧视频
           const cutoffTime = Date.now() - staleThreshold;
-          const freshVideos = cached.filter(video => video.publishedAt > cutoffTime);
+          const freshVideos = cached.filter(
+            (video) => video.publishedAt > cutoffTime,
+          );
           const removedCount = cached.length - freshVideos.length;
 
           if (removedCount > 0) {
-            await StorageManager.setCache(cacheKey, freshVideos, CACHE_CONFIG.CONTENT);
+            await StorageManager.setCache(
+              cacheKey,
+              freshVideos,
+              CACHE_CONFIG.CONTENT,
+            );
             cleanedCount += removedCount;
-            console.log(`[Bilibili] 清理UP ${user.displayName}: 移除 ${removedCount} 个过期视频，保留 ${freshVideos.length} 个`);
+            console.log(
+              `[Bilibili] 清理UP ${user.displayName}: 移除 ${removedCount} 个过期视频，保留 ${freshVideos.length} 个`,
+            );
           }
         }
       }
 
       if (cleanedCount > 0) {
-        console.log(`[Bilibili] 缓存清理完成: 总计移除 ${cleanedCount} 个过期视频`);
+        console.log(
+          `[Bilibili] 缓存清理完成: 总计移除 ${cleanedCount} 个过期视频`,
+        );
         // 重新收集内存缓存
         await this.collectAllCachedVideos();
       } else {
         console.log("[Bilibili] 没有需要清理的过期缓存");
       }
-
     } catch (error) {
       console.error("[Bilibili] 清理过期缓存失败:", error);
     }
@@ -1565,13 +1625,13 @@ export class BilibiliAdapter implements PlatformAdapter {
       let newestTimestamp = 0;
 
       for (const user of followedUsers) {
-        const cacheKey = `onlyfocus_bilibili_videos_${user.platformId}`;
+        const cacheKey = `onlyfollow_bilibili_videos_${user.platformId}`;
         const cached = await StorageManager.getCache<ContentItem[]>(cacheKey);
 
         if (cached && cached.length > 0) {
           totalVideos += cached.length;
 
-          cached.forEach(video => {
+          cached.forEach((video) => {
             oldestTimestamp = Math.min(oldestTimestamp, video.publishedAt);
             newestTimestamp = Math.max(newestTimestamp, video.publishedAt);
           });
@@ -1582,11 +1642,12 @@ export class BilibiliAdapter implements PlatformAdapter {
         totalUsers: followedUsers.length,
         totalVideos,
         totalCachedSize: this.displayedVideoIds.size,
-        averageVideosPerUser: Math.round(totalVideos / Math.max(followedUsers.length, 1)),
+        averageVideosPerUser: Math.round(
+          totalVideos / Math.max(followedUsers.length, 1),
+        ),
         oldestVideo: oldestTimestamp,
         newestVideo: newestTimestamp,
       };
-
     } catch (error) {
       console.error("[Bilibili] 获取缓存统计失败:", error);
       return {

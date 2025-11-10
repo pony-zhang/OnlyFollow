@@ -1,8 +1,8 @@
-# OnlyFocus 项目实现总结
+# OnlyFollow 项目实现总结
 
 ## 项目概述
 
-OnlyFocus 是一个 Chrome 扩展插件，旨在将各大社交媒体平台的算法推荐替换为用户关注内容的随机展示，让用户重新掌控信息流。
+OnlyFollow 是一个 Chrome 扩展插件，旨在将各大社交媒体平台的算法推荐替换为用户关注内容的随机展示，让用户重新掌控信息流。
 
 ## 已完成的功能
 
@@ -67,7 +67,7 @@ OnlyFocus 是一个 Chrome 扩展插件，旨在将各大社交媒体平台的�
 ## 项目文件结构
 
 ```
-onlyfocus/
+onlyfollow/
 ├── manifest.json              # Chrome 扩展配置
 ├── background/                # 后台服务脚本
 ├── content/                   # 内容脚本

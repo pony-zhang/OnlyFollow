@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
-import { createRoot } from 'react-dom/client';
-import type { UserConfig, Platform } from '../shared/types';
-import { ChromeExtensionApi } from '../shared/utils/api';
+import React, { useState, useEffect } from "react";
+import { createRoot } from "react-dom/client";
+import type { UserConfig, Platform } from "../shared/types";
+import { ChromeExtensionApi } from "../shared/utils/api";
 
 // 兼容性函数：将新配置转换为旧格式以保持UI兼容
 const getLegacyConfig = (config: UserConfig | null) => {
@@ -20,7 +20,8 @@ const getLegacyConfig = (config: UserConfig | null) => {
       refreshInterval: config.globalSettings?.refreshInterval || 30 * 60 * 1000,
       shuffleEnabled: config.globalSettings?.shuffleEnabled ?? true,
       requestDelay: config.platformSettings?.bilibili?.requestDelay || 5000,
-      concurrentRequests: config.platformSettings?.bilibili?.concurrentRequests || false,
+      concurrentRequests:
+        config.platformSettings?.bilibili?.concurrentRequests || false,
       concurrentLimit: config.platformSettings?.bilibili?.concurrentLimit || 1,
     },
     uiSettings: config.uiSettings,
@@ -40,7 +41,7 @@ function OptionsPage() {
   const loadConfig = async () => {
     try {
       setIsLoading(true);
-      const data = await ChromeExtensionApi.sendMessage('getConfig');
+      const data = await ChromeExtensionApi.sendMessage("getConfig");
 
       // 确保配置有正确的结构
       if (data && !data.globalSettings && data.contentSettings) {
@@ -49,20 +50,22 @@ function OptionsPage() {
           ...data,
           globalSettings: {
             maxItemsPerPlatform: data.contentSettings.maxItems || 20,
-            refreshInterval: data.contentSettings.refreshInterval || 30 * 60 * 1000,
+            refreshInterval:
+              data.contentSettings.refreshInterval || 30 * 60 * 1000,
             shuffleEnabled: data.contentSettings.shuffleEnabled ?? true,
           },
           platformSettings: {
             bilibili: {
-              enabled: data.enabledPlatforms?.includes('bilibili') || false,
+              enabled: data.enabledPlatforms?.includes("bilibili") || false,
               requestDelay: data.contentSettings.requestDelay || 5000,
-              concurrentRequests: data.contentSettings.concurrentRequests || false,
+              concurrentRequests:
+                data.contentSettings.concurrentRequests || false,
               concurrentLimit: data.contentSettings.concurrentLimit || 1,
               maxItems: data.contentSettings.maxItems || 20,
               customSettings: {},
             },
             youtube: {
-              enabled: data.enabledPlatforms?.includes('youtube') || false,
+              enabled: data.enabledPlatforms?.includes("youtube") || false,
               requestDelay: 1000,
               concurrentRequests: true,
               concurrentLimit: 3,
@@ -70,7 +73,7 @@ function OptionsPage() {
               customSettings: {},
             },
             twitter: {
-              enabled: data.enabledPlatforms?.includes('twitter') || false,
+              enabled: data.enabledPlatforms?.includes("twitter") || false,
               requestDelay: 2000,
               concurrentRequests: false,
               concurrentLimit: 2,
@@ -78,7 +81,7 @@ function OptionsPage() {
               customSettings: {},
             },
             instagram: {
-              enabled: data.enabledPlatforms?.includes('instagram') || false,
+              enabled: data.enabledPlatforms?.includes("instagram") || false,
               requestDelay: 3000,
               concurrentRequests: false,
               concurrentLimit: 1,
@@ -92,7 +95,7 @@ function OptionsPage() {
         setConfig(data);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : '加载配置失败');
+      setError(err instanceof Error ? err.message : "加载配置失败");
     } finally {
       setIsLoading(false);
     }
@@ -100,12 +103,12 @@ function OptionsPage() {
 
   const saveConfig = async (updates: Partial<UserConfig>) => {
     try {
-      await ChromeExtensionApi.sendMessage('setConfig', updates);
+      await ChromeExtensionApi.sendMessage("setConfig", updates);
       await loadConfig();
-      setSaveMessage('配置已保存');
+      setSaveMessage("配置已保存");
       setTimeout(() => setSaveMessage(null), 2000);
     } catch (err) {
-      setError(err instanceof Error ? err.message : '保存失败');
+      setError(err instanceof Error ? err.message : "保存失败");
     }
   };
 
@@ -113,37 +116,41 @@ function OptionsPage() {
     if (!config) return;
 
     const enabledPlatforms = config.enabledPlatforms.includes(platform)
-      ? config.enabledPlatforms.filter(p => p !== platform)
+      ? config.enabledPlatforms.filter((p) => p !== platform)
       : [...config.enabledPlatforms, platform];
 
     await saveConfig({ enabledPlatforms });
   };
 
-  const updateContentSettings = async (settings: Partial<UserConfig['globalSettings']>) => {
+  const updateContentSettings = async (
+    settings: Partial<UserConfig["globalSettings"]>,
+  ) => {
     if (!config) return;
 
     await saveConfig({
-      globalSettings: { ...config.globalSettings, ...settings }
+      globalSettings: { ...config.globalSettings, ...settings },
     });
   };
 
-  const updateUISettings = async (settings: Partial<UserConfig['uiSettings']>) => {
+  const updateUISettings = async (
+    settings: Partial<UserConfig["uiSettings"]>,
+  ) => {
     if (!config) return;
 
     await saveConfig({
-      uiSettings: { ...config.uiSettings, ...settings }
+      uiSettings: { ...config.uiSettings, ...settings },
     });
   };
 
   const resetConfig = async () => {
-    if (confirm('确定要重置所有配置吗？')) {
+    if (confirm("确定要重置所有配置吗？")) {
       try {
-        await ChromeExtensionApi.sendMessage('resetConfig');
+        await ChromeExtensionApi.sendMessage("resetConfig");
         await loadConfig();
-        setSaveMessage('配置已重置');
+        setSaveMessage("配置已重置");
         setTimeout(() => setSaveMessage(null), 2000);
       } catch (err) {
-        setError(err instanceof Error ? err.message : '重置失败');
+        setError(err instanceof Error ? err.message : "重置失败");
       }
     }
   };
@@ -184,7 +191,7 @@ function OptionsPage() {
   return (
     <div className="options-container">
       <header className="options-header">
-        <h1>OnlyFocus 设置</h1>
+        <h1>OnlyFollow 设置</h1>
         {saveMessage && <div className="save-message">{saveMessage}</div>}
       </header>
 
@@ -192,7 +199,9 @@ function OptionsPage() {
         <section className="settings-section">
           <h2>平台设置</h2>
           <div className="platform-settings">
-            {(['bilibili', 'youtube', 'twitter', 'instagram'] as Platform[]).map(platform => (
+            {(
+              ["bilibili", "youtube", "twitter", "instagram"] as Platform[]
+            ).map((platform) => (
               <label key={platform} className="platform-toggle">
                 <input
                   type="checkbox"
@@ -200,10 +209,10 @@ function OptionsPage() {
                   onChange={() => togglePlatform(platform)}
                 />
                 <span className="platform-name">
-                  {platform === 'bilibili' && '哔哩哔哩'}
-                  {platform === 'youtube' && 'YouTube'}
-                  {platform === 'twitter' && 'Twitter/X'}
-                  {platform === 'instagram' && 'Instagram'}
+                  {platform === "bilibili" && "哔哩哔哩"}
+                  {platform === "youtube" && "YouTube"}
+                  {platform === "twitter" && "Twitter/X"}
+                  {platform === "instagram" && "Instagram"}
                 </span>
               </label>
             ))}
@@ -220,9 +229,11 @@ function OptionsPage() {
               min="1"
               max="100"
               value={config.globalSettings.maxItemsPerPlatform}
-              onChange={(e) => updateContentSettings({
-                maxItemsPerPlatform: parseInt(e.target.value) || 20
-              })}
+              onChange={(e) =>
+                updateContentSettings({
+                  maxItemsPerPlatform: parseInt(e.target.value) || 20,
+                })
+              }
             />
           </div>
           <div className="form-group">
@@ -232,9 +243,11 @@ function OptionsPage() {
               type="number"
               min="1"
               value={config.globalSettings.refreshInterval / 60000}
-              onChange={(e) => updateContentSettings({
-                refreshInterval: parseInt(e.target.value) * 60000
-              })}
+              onChange={(e) =>
+                updateContentSettings({
+                  refreshInterval: parseInt(e.target.value) * 60000,
+                })
+              }
             />
           </div>
           <div className="form-group">
@@ -252,23 +265,27 @@ function OptionsPage() {
                     ...config.platformSettings,
                     bilibili: {
                       ...config.platformSettings.bilibili,
-                      requestDelay: parseInt(e.target.value) || 15000
-                    }
-                  }
+                      requestDelay: parseInt(e.target.value) || 15000,
+                    },
+                  },
                 };
                 saveConfig(updates);
               }}
             />
-            <small>设置API请求之间的间隔时间，避免触发频率限制（建议15000毫秒以上）</small>
+            <small>
+              设置API请求之间的间隔时间，避免触发频率限制（建议15000毫秒以上）
+            </small>
           </div>
           <div className="form-group">
             <label className="checkbox-label">
               <input
                 type="checkbox"
                 checked={config.globalSettings.shuffleEnabled}
-                onChange={(e) => updateContentSettings({
-                  shuffleEnabled: e.target.checked
-                })}
+                onChange={(e) =>
+                  updateContentSettings({
+                    shuffleEnabled: e.target.checked,
+                  })
+                }
               />
               <span>启用内容洗牌</span>
             </label>
@@ -284,16 +301,18 @@ function OptionsPage() {
                       ...config.platformSettings,
                       bilibili: {
                         ...config.platformSettings.bilibili,
-                        concurrentRequests: e.target.checked
-                      }
-                    }
+                        concurrentRequests: e.target.checked,
+                      },
+                    },
                   };
                   saveConfig(updates);
                 }}
               />
               <span>启用并发请求</span>
             </label>
-            <small>启用后可加快后台更新速度，但可能触发B站频率限制（强烈建议关闭）</small>
+            <small>
+              启用后可加快后台更新速度，但可能触发B站频率限制（强烈建议关闭）
+            </small>
           </div>
           {config.platformSettings.bilibili.concurrentRequests && (
             <div className="form-group">
@@ -310,9 +329,9 @@ function OptionsPage() {
                       ...config.platformSettings,
                       bilibili: {
                         ...config.platformSettings.bilibili,
-                        concurrentLimit: parseInt(e.target.value) || 1
-                      }
-                    }
+                        concurrentLimit: parseInt(e.target.value) || 1,
+                      },
+                    },
                   };
                   saveConfig(updates);
                 }}
@@ -329,9 +348,11 @@ function OptionsPage() {
               <input
                 type="checkbox"
                 checked={config.uiSettings.showNotifications}
-                onChange={(e) => updateUISettings({
-                  showNotifications: e.target.checked
-                })}
+                onChange={(e) =>
+                  updateUISettings({
+                    showNotifications: e.target.checked,
+                  })
+                }
               />
               <span>显示通知</span>
             </label>
@@ -341,9 +362,11 @@ function OptionsPage() {
             <select
               id="theme"
               value={config.uiSettings.theme}
-              onChange={(e) => updateUISettings({
-                theme: e.target.value as 'light' | 'dark' | 'auto'
-              })}
+              onChange={(e) =>
+                updateUISettings({
+                  theme: e.target.value as "light" | "dark" | "auto",
+                })
+              }
             >
               <option value="auto">自动</option>
               <option value="light">浅色</option>
@@ -355,10 +378,12 @@ function OptionsPage() {
         <section className="settings-section">
           <h2>管理</h2>
           <div className="action-buttons">
-            <button onClick={() => window.open('dashboard.html', '_blank')}>
+            <button onClick={() => window.open("dashboard.html", "_blank")}>
               查看面板
             </button>
-            <button onClick={() => ChromeExtensionApi.sendMessage('clearCache')}>
+            <button
+              onClick={() => ChromeExtensionApi.sendMessage("clearCache")}
+            >
               清除缓存
             </button>
             <button onClick={resetConfig} className="danger">
@@ -372,7 +397,7 @@ function OptionsPage() {
 }
 
 // 渲染应用
-const container = document.getElementById('app');
+const container = document.getElementById("app");
 if (container) {
   const root = createRoot(container);
   root.render(<OptionsPage />);

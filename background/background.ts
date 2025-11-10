@@ -1,8 +1,9 @@
-import { contentEngine } from '../core/content/ContentEngine';
-import { configManager } from '../core/config/ConfigManager';
-import { StorageManager } from '../shared/utils/storage';
-import { ChromeExtensionApi } from '../shared/utils/api';
-import { DEBUG_CONFIG } from '../shared/constants';
+import { contentEngine } from "../core/content/ContentEngine";
+import { configManager } from "../core/config/ConfigManager";
+import { StorageManager } from "../shared/utils/storage";
+import { ChromeExtensionApi } from "../shared/utils/api";
+import { DEBUG_CONFIG } from "../shared/constants";
+import { stateManager } from "../core/state";
 
 /**
  * 后台脚本（Service Worker）
@@ -19,7 +20,10 @@ class BackgroundService {
   // 初始化后台服务
   private async initialize(): Promise<void> {
     try {
-      this.log('初始化后台服务...');
+      this.log("初始化后台服务...");
+
+      // 初始化状态管理器
+      await this.initializeStateManager();
 
       // 设置消息监听器
       this.setupMessageListeners();
@@ -37,291 +41,378 @@ class BackgroundService {
       await this.performStartupTasks();
 
       this.isInitialized = true;
-      this.log('后台服务初始化完成', 'success');
+      this.log("后台服务初始化完成", "success");
     } catch (error) {
-      this.log(`后台服务初始化失败: ${error}`, 'error');
+      this.log(`后台服务初始化失败: ${error}`, "error");
     }
   }
 
   // 设置消息监听器
   private setupMessageListeners(): void {
     // 健康检查
-    ChromeExtensionApi.onMessage('healthCheck', async () => {
+    ChromeExtensionApi.onMessage("healthCheck", async () => {
       return {
-        status: 'ready',
+        status: "ready",
         timestamp: Date.now(),
-        version: chrome.runtime.getManifest().version
+        version: chrome.runtime.getManifest().version,
       };
     });
 
     // 获取cookies
-    ChromeExtensionApi.onMessage('getCookies', async (requestData) => {
+    ChromeExtensionApi.onMessage("getCookies", async (requestData) => {
       try {
-        console.log('[Background] 收到getCookies请求:', {
+        console.log("[Background] 收到getCookies请求:", {
           requestData,
           type: typeof requestData,
-          hasDomain: requestData && typeof requestData === 'object' && 'domain' in requestData
+          hasDomain:
+            requestData &&
+            typeof requestData === "object" &&
+            "domain" in requestData,
         });
 
         // 防御性检查
-        if (!requestData || typeof requestData !== 'object') {
-          console.error('[Background] 请求数据无效:', requestData);
-          throw new Error('Invalid request data');
+        if (!requestData || typeof requestData !== "object") {
+          console.error("[Background] 请求数据无效:", requestData);
+          throw new Error("Invalid request data");
         }
 
         const domain = requestData.domain;
         if (!domain) {
-          console.error('[Background] 缺少domain参数:', requestData);
-          throw new Error('Domain parameter is required');
+          console.error("[Background] 缺少domain参数:", requestData);
+          throw new Error("Domain parameter is required");
         }
 
         console.log(`[Background] 获取 ${domain} 的cookies`);
 
         if (!chrome.cookies) {
-          console.error('[Background] Cookie API not available');
-          throw new Error('Cookie API not available');
+          console.error("[Background] Cookie API not available");
+          throw new Error("Cookie API not available");
         }
 
         const cookies = await chrome.cookies.getAll({
-          domain: domain
+          domain: domain,
         });
 
         console.log(`[Background] 获取到 ${cookies.length} 个cookies`, cookies);
 
         // 确保返回数组
         if (!Array.isArray(cookies)) {
-          console.warn('[Background] chrome.cookies.getAll返回的不是数组:', cookies);
+          console.warn(
+            "[Background] chrome.cookies.getAll返回的不是数组:",
+            cookies,
+          );
           return [];
         }
 
         return cookies;
       } catch (error) {
         console.error(`[Background] 获取cookies失败:`, error);
-        this.log(`获取cookies失败: ${error}`, 'error');
+        this.log(`获取cookies失败: ${error}`, "error");
         throw error;
       }
     });
 
     // 发起HTTP请求
-    ChromeExtensionApi.onMessage('makeRequest', async (requestData) => {
+    ChromeExtensionApi.onMessage("makeRequest", async (requestData) => {
       try {
-        console.log('[Background] 发起请求:', requestData.url);
+        console.log("[Background] 发起请求:", requestData.url);
 
         const response = await fetch(requestData.url, {
-          method: requestData.method || 'GET',
-          headers: requestData.headers || {}
+          method: requestData.method || "GET",
+          headers: requestData.headers || {},
         });
 
         const responseText = await response.text();
 
-        console.log('[Background] 请求完成:', {
+        console.log("[Background] 请求完成:", {
           status: response.status,
           statusText: response.statusText,
-          ok: response.ok
+          ok: response.ok,
         });
 
         return {
           status: response.status,
           statusText: response.statusText,
           ok: response.ok,
-          responseText: responseText
+          responseText: responseText,
         };
       } catch (error) {
-        console.error('[Background] 请求失败:', error);
+        console.error("[Background] 请求失败:", error);
         throw error;
       }
     });
 
     // 获取配置
-    ChromeExtensionApi.onMessage('getConfig', async () => {
+    ChromeExtensionApi.onMessage("getConfig", async () => {
       try {
         return await configManager.getConfig();
       } catch (error) {
-        this.log(`获取配置失败: ${error}`, 'error');
+        this.log(`获取配置失败: ${error}`, "error");
         throw error;
       }
     });
 
     // 设置配置
-    ChromeExtensionApi.onMessage('setConfig', async (data) => {
+    ChromeExtensionApi.onMessage("setConfig", async (data) => {
       try {
         await configManager.updateConfig(data);
         return { success: true };
       } catch (error) {
-        this.log(`设置配置失败: ${error}`, 'error');
+        this.log(`设置配置失败: ${error}`, "error");
         throw error;
       }
     });
 
     // 重置配置
-    ChromeExtensionApi.onMessage('resetConfig', async () => {
+    ChromeExtensionApi.onMessage("resetConfig", async () => {
       try {
         await configManager.resetConfig();
         return { success: true };
       } catch (error) {
-        this.log(`重置配置失败: ${error}`, 'error');
+        this.log(`重置配置失败: ${error}`, "error");
         throw error;
       }
     });
 
     // 启动内容引擎
-    ChromeExtensionApi.onMessage('startContentEngine', async (data) => {
+    ChromeExtensionApi.onMessage("startContentEngine", async (data) => {
       try {
         await contentEngine.start(data);
         return { success: true };
       } catch (error) {
-        this.log(`启动内容引擎失败: ${error}`, 'error');
+        this.log(`启动内容引擎失败: ${error}`, "error");
         throw error;
       }
     });
 
     // 停止内容引擎
-    ChromeExtensionApi.onMessage('stopContentEngine', async () => {
+    ChromeExtensionApi.onMessage("stopContentEngine", async () => {
       try {
         contentEngine.stop();
         return { success: true };
       } catch (error) {
-        this.log(`停止内容引擎失败: ${error}`, 'error');
+        this.log(`停止内容引擎失败: ${error}`, "error");
         throw error;
       }
     });
 
     // 获取引擎状态
-    ChromeExtensionApi.onMessage('getEngineStatus', async () => {
+    ChromeExtensionApi.onMessage("getEngineStatus", async () => {
       try {
         return contentEngine.getStatus();
       } catch (error) {
-        this.log(`获取引擎状态失败: ${error}`, 'error');
+        this.log(`获取引擎状态失败: ${error}`, "error");
         throw error;
       }
     });
 
     // 手动刷新内容
-    ChromeExtensionApi.onMessage('refreshContent', async (data) => {
+    ChromeExtensionApi.onMessage("refreshContent", async (data) => {
       try {
         const content = await contentEngine.manualRefresh(data);
         return { success: true, content };
       } catch (error) {
-        this.log(`手动刷新内容失败: ${error}`, 'error');
+        this.log(`手动刷新内容失败: ${error}`, "error");
         throw error;
       }
     });
 
     // 获取关注用户
-    ChromeExtensionApi.onMessage('getFollowedUsers', async (data) => {
+    ChromeExtensionApi.onMessage("getFollowedUsers", async (data) => {
       try {
         const users = await contentEngine.getFollowedUsers(data?.platform);
         return users;
       } catch (error) {
-        this.log(`获取关注用户失败: ${error}`, 'error');
+        this.log(`获取关注用户失败: ${error}`, "error");
         throw error;
       }
     });
 
     // 获取缓存内容
-    ChromeExtensionApi.onMessage('getCachedContent', async (data) => {
+    ChromeExtensionApi.onMessage("getCachedContent", async (data) => {
       try {
         const content = await contentEngine.getCachedContent(data?.platform);
         return content;
       } catch (error) {
-        this.log(`获取缓存内容失败: ${error}`, 'error');
+        this.log(`获取缓存内容失败: ${error}`, "error");
         throw error;
       }
     });
 
     // 清除缓存
-    ChromeExtensionApi.onMessage('clearCache', async (data) => {
+    ChromeExtensionApi.onMessage("clearCache", async (data) => {
       try {
         await contentEngine.clearCache(data?.platform);
         return { success: true };
       } catch (error) {
-        this.log(`清除缓存失败: ${error}`, 'error');
+        this.log(`清除缓存失败: ${error}`, "error");
         throw error;
       }
     });
 
     // 获取缓存统计
-    ChromeExtensionApi.onMessage('getCacheStats', async () => {
+    ChromeExtensionApi.onMessage("getCacheStats", async () => {
       try {
         const stats = await StorageManager.getCacheStats();
         const storageUsage = await StorageManager.getStorageUsage();
         return { stats, storageUsage };
       } catch (error) {
-        this.log(`获取缓存统计失败: ${error}`, 'error');
+        this.log(`获取缓存统计失败: ${error}`, "error");
         throw error;
       }
     });
 
     // 导出配置
-    ChromeExtensionApi.onMessage('exportConfig', async () => {
+    ChromeExtensionApi.onMessage("exportConfig", async () => {
       try {
         return await configManager.exportConfig();
       } catch (error) {
-        this.log(`导出配置失败: ${error}`, 'error');
+        this.log(`导出配置失败: ${error}`, "error");
         throw error;
       }
     });
 
     // 导入配置
-    ChromeExtensionApi.onMessage('importConfig', async (data) => {
+    ChromeExtensionApi.onMessage("importConfig", async (data) => {
       try {
         await configManager.importConfig(data);
         return { success: true };
       } catch (error) {
-        this.log(`导入配置失败: ${error}`, 'error');
+        this.log(`导入配置失败: ${error}`, "error");
         throw error;
       }
     });
 
     // 获取配置统计
-    ChromeExtensionApi.onMessage('getConfigStats', async () => {
+    ChromeExtensionApi.onMessage("getConfigStats", async () => {
       try {
         return await configManager.getConfigStats();
       } catch (error) {
-        this.log(`获取配置统计失败: ${error}`, 'error');
+        this.log(`获取配置统计失败: ${error}`, "error");
         throw error;
       }
     });
 
     // 删除用户
-    ChromeExtensionApi.onMessage('deleteUser', async (data) => {
+    ChromeExtensionApi.onMessage("deleteUser", async (data) => {
       try {
         const { userId, platform } = data;
         if (!userId) {
-          throw new Error('用户ID是必需的');
+          throw new Error("用户ID是必需的");
         }
 
         await contentEngine.deleteUser(userId, platform);
         return { success: true, userId };
       } catch (error) {
-        this.log(`删除用户失败: ${error}`, 'error');
+        this.log(`删除用户失败: ${error}`, "error");
+        throw error;
+      }
+    });
+
+    // ===== 状态管理相关消息处理器 =====
+
+    // 获取完整状态
+    ChromeExtensionApi.onMessage("getFullState", async () => {
+      try {
+        return contentEngine.getFullState();
+      } catch (error) {
+        this.log(`获取完整状态失败: ${error}`, "error");
+        throw error;
+      }
+    });
+
+    // 启用/禁用插件
+    ChromeExtensionApi.onMessage("setPluginEnabled", async (data) => {
+      try {
+        const { enabled } = data;
+        if (enabled) {
+          await stateManager.enablePlugin();
+        } else {
+          await stateManager.disablePlugin();
+        }
+        return { success: true, enabled };
+      } catch (error) {
+        this.log(`设置插件状态失败: ${error}`, "error");
+        throw error;
+      }
+    });
+
+    // 暂停/恢复插件
+    ChromeExtensionApi.onMessage("setPluginPaused", async (data) => {
+      try {
+        const { paused } = data;
+        if (paused) {
+          await stateManager.pausePlugin();
+        } else {
+          await stateManager.resumePlugin();
+        }
+        return { success: true, paused };
+      } catch (error) {
+        this.log(`设置插件暂停状态失败: ${error}`, "error");
+        throw error;
+      }
+    });
+
+    // 启用/禁用平台
+    ChromeExtensionApi.onMessage("setPlatformEnabled", async (data) => {
+      try {
+        const { platform, enabled } = data;
+        if (enabled) {
+          await stateManager.enablePlatform(platform);
+        } else {
+          await stateManager.disablePlatform(platform);
+        }
+        return { success: true, platform, enabled };
+      } catch (error) {
+        this.log(`设置平台状态失败: ${error}`, "error");
+        throw error;
+      }
+    });
+
+    // 重置所有状态
+    ChromeExtensionApi.onMessage("resetAllStates", async () => {
+      try {
+        await stateManager.resetAllStates();
+        return { success: true };
+      } catch (error) {
+        this.log(`重置状态失败: ${error}`, "error");
+        throw error;
+      }
+    });
+
+    // 获取状态统计
+    ChromeExtensionApi.onMessage("getStateStatistics", async () => {
+      try {
+        return stateManager.getStateStatistics();
+      } catch (error) {
+        this.log(`获取状态统计失败: ${error}`, "error");
         throw error;
       }
     });
 
     // 获取用户缓存信息
-    ChromeExtensionApi.onMessage('getUserCacheInfo', async (data) => {
+    ChromeExtensionApi.onMessage("getUserCacheInfo", async (data) => {
       try {
         const { userId } = data;
         if (!userId) {
-          throw new Error('用户ID是必需的');
+          throw new Error("用户ID是必需的");
         }
 
         const cacheInfo = await contentEngine.getUserCacheInfo(userId);
         return cacheInfo;
       } catch (error) {
-        this.log(`获取用户缓存信息失败: ${error}`, 'error');
+        this.log(`获取用户缓存信息失败: ${error}`, "error");
         throw error;
       }
     });
 
     // 打开选项页
-    ChromeExtensionApi.onMessage('openOptions', async () => {
+    ChromeExtensionApi.onMessage("openOptions", async () => {
       try {
         ChromeExtensionApi.openOptionsPage();
         return { success: true };
       } catch (error) {
-        this.log(`打开选项页失败: ${error}`, 'error');
+        this.log(`打开选项页失败: ${error}`, "error");
         throw error;
       }
     });
@@ -331,10 +422,10 @@ class BackgroundService {
   private setupEventListeners(): void {
     // 扩展安装事件
     chrome.runtime.onInstalled.addListener(async (details) => {
-      if (details.reason === 'install') {
-        this.log('扩展首次安装');
+      if (details.reason === "install") {
+        this.log("扩展首次安装");
         await this.handleFirstInstall();
-      } else if (details.reason === 'update') {
+      } else if (details.reason === "update") {
         this.log(`扩展更新到版本 ${chrome.runtime.getManifest().version}`);
         await this.handleUpdate(details.previousVersion);
       }
@@ -342,13 +433,13 @@ class BackgroundService {
 
     // 扩展启动事件
     chrome.runtime.onStartup.addListener(async () => {
-      this.log('扩展启动');
+      this.log("扩展启动");
       await this.handleStartup();
     });
 
     // 标签页更新事件
     chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
-      if (changeInfo.status === 'complete' && tab.url) {
+      if (changeInfo.status === "complete" && tab.url) {
         await this.handleTabUpdate(tabId, tab.url);
       }
     });
@@ -359,61 +450,80 @@ class BackgroundService {
     });
 
     // 内容引擎事件
-    contentEngine.on('engineStarted', (data) => {
-      this.log('内容引擎已启动', 'success');
-      this.notifyContentEngineChange('started', data);
+    contentEngine.on("engineStarted", (data) => {
+      this.log("内容引擎已启动", "success");
+      this.notifyContentEngineChange("started", data);
     });
 
-    contentEngine.on('engineStopped', () => {
-      this.log('内容引擎已停止', 'warning');
-      this.notifyContentEngineChange('stopped');
+    contentEngine.on("engineStopped", () => {
+      this.log("内容引擎已停止", "warning");
+      this.notifyContentEngineChange("stopped");
     });
 
-    contentEngine.on('refreshCompleted', (data) => {
-      this.log(`内容刷新完成: ${data.content.length} 条内容`, 'success');
+    contentEngine.on("refreshCompleted", (data) => {
+      this.log(`内容刷新完成: ${data.content.length} 条内容`, "success");
       this.notifyContentRefreshed(data);
     });
 
-    contentEngine.on('refreshFailed', (data) => {
-      this.log(`内容刷新失败: ${data.error}`, 'error');
-      this.notifyError('内容刷新失败', data.error);
+    contentEngine.on("refreshFailed", (data) => {
+      this.log(`内容刷新失败: ${data.error}`, "error");
+      this.notifyError("内容刷新失败", data.error);
     });
 
     // 配置管理器事件
     configManager.addListener(async (config) => {
-      this.log('配置已更新', 'info');
+      this.log("配置已更新", "info");
       await this.handleConfigChange(config);
     });
+  }
+
+  // 初始化状态管理器
+  private async initializeStateManager(): Promise<void> {
+    try {
+      await stateManager.initialize();
+      this.log("状态管理器初始化完成");
+    } catch (error) {
+      this.log(`状态管理器初始化失败: ${error}`, "error");
+    }
   }
 
   // 初始化配置
   private async initializeConfig(): Promise<void> {
     try {
       await configManager.getConfig();
-      this.log('配置管理器初始化完成');
+      this.log("配置管理器初始化完成");
     } catch (error) {
-      this.log(`配置管理器初始化失败: ${error}`, 'error');
+      this.log(`配置管理器初始化失败: ${error}`, "error");
     }
   }
 
   // 初始化内容引擎
   private async initializeContentEngine(): Promise<void> {
     try {
-      // 根据配置决定是否自动启动内容引擎
-      const config = await configManager.getConfig();
-      if (config.enabledPlatforms.length > 0) {
-        // 启动内容引擎以支持后台操作
-        this.log('启动内容引擎...');
-        await contentEngine.start({
-          platform: null, // 不指定平台
-          maxItems: config.globalSettings.maxItemsPerPlatform,
-          refreshInterval: config.globalSettings.refreshInterval,
-          shuffleEnabled: config.globalSettings.shuffleEnabled,
-        });
-        this.log('内容引擎已启动', 'success');
+      // 先初始化内容引擎
+      await contentEngine.initialize();
+
+      // 检查插件状态决定是否自动启动
+      const pluginState = stateManager.getPluginState();
+      if (pluginState.enabled && !pluginState.isPaused) {
+        // 根据配置决定是否自动启动内容引擎
+        const config = await configManager.getConfig();
+        if (config.enabledPlatforms.length > 0) {
+          // 启动内容引擎以支持后台操作
+          this.log("启动内容引擎...");
+          await contentEngine.start({
+            platform: null, // 不指定平台
+            maxItems: config.globalSettings.maxItemsPerPlatform,
+            refreshInterval: config.globalSettings.refreshInterval,
+            shuffleEnabled: config.globalSettings.shuffleEnabled,
+          });
+          this.log("内容引擎已启动", "success");
+        }
+      } else {
+        this.log("插件未启用或已暂停，跳过内容引擎启动", "info");
       }
     } catch (error) {
-      this.log(`内容引擎初始化失败: ${error}`, 'error');
+      this.log(`内容引擎初始化失败: ${error}`, "error");
     }
   }
 
@@ -422,44 +532,56 @@ class BackgroundService {
     try {
       // 清理过期缓存
       await StorageManager.cleanExpiredCache();
-      this.log('过期缓存清理完成');
+      this.log("过期缓存清理完成");
 
       // 检查存储使用情况
       const storageUsage = await StorageManager.getStorageUsage();
       if (storageUsage.percentage > 80) {
-        this.log(`存储使用率较高: ${storageUsage.percentage.toFixed(1)}%`, 'warning');
+        this.log(
+          `存储使用率较高: ${storageUsage.percentage.toFixed(1)}%`,
+          "warning",
+        );
       }
 
       // 设置定期清理任务
       this.setupPeriodicTasks();
     } catch (error) {
-      this.log(`启动任务执行失败: ${error}`, 'error');
+      this.log(`启动任务执行失败: ${error}`, "error");
     }
   }
 
   // 设置定期任务
   private setupPeriodicTasks(): void {
     // 每小时清理一次过期缓存
-    setInterval(async () => {
-      try {
-        await StorageManager.cleanExpiredCache();
-      } catch (error) {
-        this.log(`定期清理缓存失败: ${error}`, 'error');
-      }
-    }, 60 * 60 * 1000);
+    setInterval(
+      async () => {
+        try {
+          await StorageManager.cleanExpiredCache();
+        } catch (error) {
+          this.log(`定期清理缓存失败: ${error}`, "error");
+        }
+      },
+      60 * 60 * 1000,
+    );
 
     // 每天检查一次存储使用情况
-    setInterval(async () => {
-      try {
-        const usage = await StorageManager.getStorageUsage();
-        if (usage.percentage > 90) {
-          this.log(`存储使用率过高: ${usage.percentage.toFixed(1)}%`, 'error');
-          // 可以在这里添加自动清理逻辑
+    setInterval(
+      async () => {
+        try {
+          const usage = await StorageManager.getStorageUsage();
+          if (usage.percentage > 90) {
+            this.log(
+              `存储使用率过高: ${usage.percentage.toFixed(1)}%`,
+              "error",
+            );
+            // 可以在这里添加自动清理逻辑
+          }
+        } catch (error) {
+          this.log(`检查存储使用情况失败: ${error}`, "error");
         }
-      } catch (error) {
-        this.log(`检查存储使用情况失败: ${error}`, 'error');
-      }
-    }, 24 * 60 * 60 * 1000);
+      },
+      24 * 60 * 60 * 1000,
+    );
   }
 
   // 处理首次安装
@@ -470,12 +592,12 @@ class BackgroundService {
 
       // 打开欢迎页面或选项页
       chrome.tabs.create({
-        url: chrome.runtime.getURL('options.html')
+        url: chrome.runtime.getURL("options.html"),
       });
 
-      this.log('首次安装处理完成');
+      this.log("首次安装处理完成");
     } catch (error) {
-      this.log(`首次安装处理失败: ${error}`, 'error');
+      this.log(`首次安装处理失败: ${error}`, "error");
     }
   }
 
@@ -485,16 +607,16 @@ class BackgroundService {
       // 可以在这里添加版本升级逻辑
       this.log(`更新处理完成，之前版本: ${previousVersion}`);
     } catch (error) {
-      this.log(`更新处理失败: ${error}`, 'error');
+      this.log(`更新处理失败: ${error}`, "error");
     }
   }
 
   // 处理启动
   private async handleStartup(): Promise<void> {
     try {
-      this.log('启动处理完成');
+      this.log("启动处理完成");
     } catch (error) {
-      this.log(`启动处理失败: ${error}`, 'error');
+      this.log(`启动处理失败: ${error}`, "error");
     }
   }
 
@@ -502,14 +624,22 @@ class BackgroundService {
   private async handleTabUpdate(tabId: number, url: string): Promise<void> {
     try {
       // 检查是否为支持的网站
-      const supportedPlatforms = ['bilibili.com', 'youtube.com', 'twitter.com', 'x.com', 'instagram.com'];
-      const isSupported = supportedPlatforms.some(platform => url.includes(platform));
+      const supportedPlatforms = [
+        "bilibili.com",
+        "youtube.com",
+        "twitter.com",
+        "x.com",
+        "instagram.com",
+      ];
+      const isSupported = supportedPlatforms.some((platform) =>
+        url.includes(platform),
+      );
 
       if (isSupported) {
         this.log(`检测到支持的网站: ${url}`);
       }
     } catch (error) {
-      this.log(`处理标签页更新失败: ${error}`, 'error');
+      this.log(`处理标签页更新失败: ${error}`, "error");
     }
   }
 
@@ -518,7 +648,7 @@ class BackgroundService {
     try {
       // 可以在这里添加标签页激活后的逻辑
     } catch (error) {
-      this.log(`处理标签页激活失败: ${error}`, 'error');
+      this.log(`处理标签页激活失败: ${error}`, "error");
     }
   }
 
@@ -531,28 +661,38 @@ class BackgroundService {
       for (const tab of tabs) {
         if (tab.id && tab.url && this.isSupportedUrl(tab.url)) {
           try {
-            await ChromeExtensionApi.sendMessage('configUpdated', config, tab.id);
+            await ChromeExtensionApi.sendMessage(
+              "configUpdated",
+              config,
+              tab.id,
+            );
           } catch (error) {
             // 忽略无法发送消息的标签页
           }
         }
       }
     } catch (error) {
-      this.log(`处理配置变化失败: ${error}`, 'error');
+      this.log(`处理配置变化失败: ${error}`, "error");
     }
   }
 
   // 检查是否为支持的URL
   private isSupportedUrl(url: string): boolean {
-    const supportedPlatforms = ['bilibili.com', 'youtube.com', 'twitter.com', 'x.com', 'instagram.com'];
-    return supportedPlatforms.some(platform => url.includes(platform));
+    const supportedPlatforms = [
+      "bilibili.com",
+      "youtube.com",
+      "twitter.com",
+      "x.com",
+      "instagram.com",
+    ];
+    return supportedPlatforms.some((platform) => url.includes(platform));
   }
 
   // 通知内容引擎状态变化
   private notifyContentEngineChange(status: string, data?: any): void {
     ChromeExtensionApi.createNotification(
-      'OnlyFocus',
-      `内容引擎${status === 'started' ? '已启动' : '已停止'}`
+      "OnlyFollow",
+      `内容引擎${status === "started" ? "已启动" : "已停止"}`,
     );
   }
 
@@ -561,22 +701,22 @@ class BackgroundService {
     const config = await configManager.getConfig();
     if (config?.uiSettings?.showNotifications) {
       ChromeExtensionApi.createNotification(
-        'OnlyFocus',
-        `已刷新 ${data.content.length} 条关注内容`
+        "OnlyFollow",
+        `已刷新 ${data.content.length} 条关注内容`,
       );
     }
   }
 
   // 通知错误
   private notifyError(title: string, message: string): void {
-    ChromeExtensionApi.createNotification(
-      `OnlyFocus - ${title}`,
-      message
-    );
+    ChromeExtensionApi.createNotification(`OnlyFollow - ${title}`, message);
   }
 
   // 日志工具
-  private log(message: string, type: 'info' | 'success' | 'warning' | 'error' = 'info'): void {
+  private log(
+    message: string,
+    type: "info" | "success" | "warning" | "error" = "info",
+  ): void {
     if (!DEBUG_CONFIG.enabled) return;
 
     const timestamp = new Date().toLocaleTimeString();
@@ -591,4 +731,4 @@ class BackgroundService {
 const backgroundService = new BackgroundService();
 
 // 导出实例（用于调试）
-(globalThis as any).onlyfocusBackground = backgroundService;
+(globalThis as any).onlyfollowBackground = backgroundService;

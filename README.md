@@ -1,4 +1,4 @@
-# OnlyFocus
+# OnlyFollow
 
 将各大平台的算法推荐替换为用户关注内容的随机展示，让你重新掌控信息流。
 
@@ -21,7 +21,7 @@
 ## 项目架构
 
 ```
-onlyfocus/
+onlyfollow/
 ├── manifest.json              # Chrome扩展配置
 ├── background/                # 后台服务脚本
 │   └── background.ts         # Service Worker
@@ -243,4 +243,4 @@ export const DEBUG_CONFIG = {
 
 ---
 
-**OnlyFocus** - 让你重新掌控信息流的选择权。
+**OnlyFollow** - 让你重新掌控信息流的选择权。

@@ -1,8 +1,8 @@
-import { platformManager } from './PlatformManager';
-import { configManager } from '../core/config/ConfigManager';
-import { ChromeExtensionApi } from '../shared/utils/api';
-import { DEBUG_CONFIG } from '../shared/constants';
-import type { ContentItem, FollowedUser } from '../shared/types';
+import { platformManager } from "./PlatformManager";
+import { configManager } from "../core/config/ConfigManager";
+import { ChromeExtensionApi } from "../shared/utils/api";
+import { DEBUG_CONFIG } from "../shared/constants";
+import type { ContentItem, FollowedUser } from "../shared/types";
 
 /**
  * 内容脚本主入口
@@ -21,7 +21,7 @@ class ContentScript {
   // 初始化
   private async initialize(): Promise<void> {
     try {
-      this.log('初始化内容脚本...');
+      this.log("初始化内容脚本...");
 
       // 等待页面加载完成
       await this.waitForPageLoad();
@@ -30,14 +30,16 @@ class ContentScript {
       this.currentPlatform = platformManager.detectCurrentPlatform();
 
       if (!this.currentPlatform) {
-        this.log('当前页面不受支持', 'warning');
+        this.log("当前页面不受支持", "warning");
         return;
       }
 
       // 检查平台是否启用
-      const isEnabled = await configManager.isPlatformEnabled(this.currentPlatform as any);
+      const isEnabled = await configManager.isPlatformEnabled(
+        this.currentPlatform as any,
+      );
       if (!isEnabled) {
-        this.log(`平台 ${this.currentPlatform} 已禁用`, 'warning');
+        this.log(`平台 ${this.currentPlatform} 已禁用`, "warning");
         return;
       }
 
@@ -51,87 +53,90 @@ class ContentScript {
       await this.startContentReplacement();
 
       this.isInitialized = true;
-      this.log(`内容脚本初始化完成，当前平台: ${this.currentPlatform}`, 'success');
+      this.log(
+        `内容脚本初始化完成，当前平台: ${this.currentPlatform}`,
+        "success",
+      );
 
       // 通知背景脚本
-      ChromeExtensionApi.sendMessage('platformDetected', {
+      ChromeExtensionApi.sendMessage("platformDetected", {
         platform: this.currentPlatform,
         url: window.location.href,
       });
     } catch (error) {
-      this.log(`初始化失败: ${error}`, 'error');
+      this.log(`初始化失败: ${error}`, "error");
     }
   }
 
   // 等待页面加载完成
   private waitForPageLoad(): Promise<void> {
     return new Promise((resolve) => {
-      if (document.readyState === 'complete') {
+      if (document.readyState === "complete") {
         resolve();
         return;
       }
 
       const handleLoad = () => {
-        window.removeEventListener('load', handleLoad);
+        window.removeEventListener("load", handleLoad);
         resolve();
       };
 
-      window.addEventListener('load', handleLoad);
+      window.addEventListener("load", handleLoad);
     });
   }
 
   // 设置消息监听器
   private setupMessageListeners(): void {
     // 获取随机内容
-    ChromeExtensionApi.onMessage('getRandomContent', async (data) => {
+    ChromeExtensionApi.onMessage("getRandomContent", async (data) => {
       try {
         const content = await platformManager.getRandomContent(data?.platform);
         return content;
       } catch (error) {
-        this.log(`获取随机内容失败: ${error}`, 'error');
+        this.log(`获取随机内容失败: ${error}`, "error");
         throw error;
       }
     });
 
     // 获取关注用户
-    ChromeExtensionApi.onMessage('getFollowedUsers', async (data) => {
+    ChromeExtensionApi.onMessage("getFollowedUsers", async (data) => {
       try {
         const users = await platformManager.getFollowedUsers(data?.platform);
         return users;
       } catch (error) {
-        this.log(`获取关注用户失败: ${error}`, 'error');
+        this.log(`获取关注用户失败: ${error}`, "error");
         throw error;
       }
     });
 
     // 替换内容
-    ChromeExtensionApi.onMessage('replaceContent', async (data) => {
+    ChromeExtensionApi.onMessage("replaceContent", async (data) => {
       try {
         await this.replaceContent(data?.content, data?.platform);
         return { success: true };
       } catch (error) {
-        this.log(`替换内容失败: ${error}`, 'error');
+        this.log(`替换内容失败: ${error}`, "error");
         throw error;
       }
     });
 
     // 刷新内容
-    ChromeExtensionApi.onMessage('refreshContent', async () => {
+    ChromeExtensionApi.onMessage("refreshContent", async () => {
       try {
         await this.refreshContent();
         return { success: true };
       } catch (error) {
-        this.log(`刷新内容失败: ${error}`, 'error');
+        this.log(`刷新内容失败: ${error}`, "error");
         throw error;
       }
     });
 
     // 获取平台信息
-    ChromeExtensionApi.onMessage('getPlatformInfo', async () => {
+    ChromeExtensionApi.onMessage("getPlatformInfo", async () => {
       try {
         return platformManager.getPlatformInfo();
       } catch (error) {
-        this.log(`获取平台信息失败: ${error}`, 'error');
+        this.log(`获取平台信息失败: ${error}`, "error");
         throw error;
       }
     });
@@ -160,7 +165,7 @@ class ContentScript {
 
     try {
       this.isProcessing = true;
-      this.log('开始内容替换...');
+      this.log("开始内容替换...");
 
       // 等待推荐内容加载
       await this.waitForContentArea();
@@ -172,21 +177,21 @@ class ContentScript {
         // 替换页面内容
         await platformManager.replaceContent(content);
 
-        this.log(`成功替换 ${content.length} 条内容`, 'success');
+        this.log(`成功替换 ${content.length} 条内容`, "success");
 
         // 通知背景脚本
-        ChromeExtensionApi.sendMessage('contentReplaced', {
+        ChromeExtensionApi.sendMessage("contentReplaced", {
           platform: this.currentPlatform,
           contentCount: content.length,
         });
       } else {
-        this.log('未获取到可替换的内容', 'warning');
+        this.log("未获取到可替换的内容", "warning");
       }
     } catch (error) {
-      this.log(`内容替换失败: ${error}`, 'error');
+      this.log(`内容替换失败: ${error}`, "error");
 
       // 通知背景脚本
-      ChromeExtensionApi.sendMessage('errorOccurred', {
+      ChromeExtensionApi.sendMessage("errorOccurred", {
         platform: this.currentPlatform,
         error: error.message,
       });
@@ -199,7 +204,7 @@ class ContentScript {
   private async waitForContentArea(): Promise<void> {
     const adapter = platformManager.getCurrentAdapter();
     if (!adapter) {
-      throw new Error('未找到当前平台适配器');
+      throw new Error("未找到当前平台适配器");
     }
 
     const maxAttempts = 20;
@@ -215,7 +220,7 @@ class ContentScript {
           this.log(`内容区域已加载 (尝试 ${attempts} 次)`);
           resolve();
         } else if (attempts >= maxAttempts) {
-          reject(new Error('等待内容区域超时'));
+          reject(new Error("等待内容区域超时"));
         } else {
           setTimeout(checkContentArea, checkInterval);
         }
@@ -226,10 +231,13 @@ class ContentScript {
   }
 
   // 替换内容
-  private async replaceContent(content: ContentItem[], platform?: string): Promise<void> {
+  private async replaceContent(
+    content: ContentItem[],
+    platform?: string,
+  ): Promise<void> {
     const targetPlatform = platform || this.currentPlatform;
     if (!targetPlatform) {
-      throw new Error('未指定平台');
+      throw new Error("未指定平台");
     }
 
     await platformManager.replaceContent(content, targetPlatform as any);
@@ -251,7 +259,10 @@ class ContentScript {
   }
 
   // 日志工具
-  private log(message: string, type: 'info' | 'success' | 'warning' | 'error' = 'info'): void {
+  private log(
+    message: string,
+    type: "info" | "success" | "warning" | "error" = "info",
+  ): void {
     if (!DEBUG_CONFIG.enabled) return;
 
     const timestamp = new Date().toLocaleTimeString();
@@ -274,9 +285,9 @@ class ContentScript {
 const contentScript = new ContentScript();
 
 // 导出实例（用于调试）
-(window as any).onlyfocusContentScript = contentScript;
+(window as any).onlyfollowContentScript = contentScript;
 
 // 页面卸载时清理
-window.addEventListener('beforeunload', () => {
+window.addEventListener("beforeunload", () => {
   contentScript.destroy();
 });

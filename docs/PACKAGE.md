@@ -34,7 +34,7 @@ bun run release
 
 ```
 release/
-├── onlyfocus-v1.0.0.zip          # Chrome Web Store 上传文件
+├── onlyfollow-v1.0.0.zip          # Chrome Web Store 上传文件
 ├── package-report-v1.0.0.json    # 详细打包报告
 └── ...
 ```
@@ -92,7 +92,7 @@ release/
 const config: PackageConfig = {
   outputDir: 'release',      // 输出目录
   distDir: 'dist',          // 构建目录
-  packageName: 'onlyfocus', // 包名前缀
+  packageName: 'onlyfollow', // 包名前缀
   version: '1.0.0'          // 版本号
 };
 ```

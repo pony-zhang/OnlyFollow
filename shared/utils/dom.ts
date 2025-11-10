@@ -1,4 +1,4 @@
-import type { ContentItem, DOMReplacement } from '../types';
+import type { ContentItem, DOMReplacement } from "../types";
 
 // DOM操作工具
 export class DOMUtils {
@@ -6,7 +6,7 @@ export class DOMUtils {
   static waitForElement(
     selector: string,
     timeout: number = 10000,
-    parent: Element | Document = document
+    parent: Element | Document = document,
   ): Promise<Element | null> {
     return new Promise((resolve) => {
       const element = parent.querySelector(selector);
@@ -41,7 +41,7 @@ export class DOMUtils {
     selector: string,
     count: number = 1,
     timeout: number = 10000,
-    parent: Element | Document = document
+    parent: Element | Document = document,
   ): Promise<Element[]> {
     return new Promise((resolve) => {
       const elements = Array.from(parent.querySelectorAll(selector));
@@ -72,7 +72,10 @@ export class DOMUtils {
   }
 
   // 安全地设置元素属性
-  static setAttributes(element: Element, attributes: Record<string, string>): void {
+  static setAttributes(
+    element: Element,
+    attributes: Record<string, string>,
+  ): void {
     Object.entries(attributes).forEach(([key, value]) => {
       if (value) {
         element.setAttribute(key, value);
@@ -95,7 +98,7 @@ export class DOMUtils {
     tagName: string,
     attributes?: Record<string, string>,
     styles?: Record<string, string>,
-    innerHTML?: string
+    innerHTML?: string,
   ): HTMLElement {
     const element = document.createElement(tagName);
 
@@ -123,8 +126,8 @@ export class DOMUtils {
 
   // 替换元素内容
   static replaceContent(element: Element, newContent: string | Node): void {
-    element.innerHTML = '';
-    if (typeof newContent === 'string') {
+    element.innerHTML = "";
+    if (typeof newContent === "string") {
       element.innerHTML = newContent;
     } else {
       element.appendChild(newContent);
@@ -136,7 +139,7 @@ export class DOMUtils {
     element: Element,
     event: string,
     handler: EventListener,
-    options?: AddEventListenerOptions
+    options?: AddEventListenerOptions,
   ): void {
     element.addEventListener(event, handler, options);
   }
@@ -145,7 +148,7 @@ export class DOMUtils {
   static removeEventListener(
     element: Element,
     event: string,
-    handler: EventListener
+    handler: EventListener,
   ): void {
     element.removeEventListener(event, handler);
   }
@@ -154,9 +157,9 @@ export class DOMUtils {
   static isVisible(element: Element): boolean {
     const style = window.getComputedStyle(element);
     return (
-      style.display !== 'none' &&
-      style.visibility !== 'hidden' &&
-      style.opacity !== '0' &&
+      style.display !== "none" &&
+      style.visibility !== "hidden" &&
+      style.opacity !== "0" &&
       element.hasChildNodes()
     );
   }
@@ -171,15 +174,18 @@ export class DOMUtils {
   }
 
   // 滚动到元素
-  static scrollToElement(element: Element, behavior: ScrollBehavior = 'smooth'): void {
-    element.scrollIntoView({ behavior, block: 'center' });
+  static scrollToElement(
+    element: Element,
+    behavior: ScrollBehavior = "smooth",
+  ): void {
+    element.scrollIntoView({ behavior, block: "center" });
   }
 
   // 监听DOM变化
   static observeChanges(
     callback: () => void,
     target: Element | Document = document,
-    options: MutationObserverInit = { childList: true, subtree: true }
+    options: MutationObserverInit = { childList: true, subtree: true },
   ): MutationObserver {
     const observer = new MutationObserver(callback);
     observer.observe(target, options);
@@ -190,7 +196,7 @@ export class DOMUtils {
   static findParent(
     element: Element,
     predicate: (parent: Element) => boolean,
-    maxDepth: number = 10
+    maxDepth: number = 10,
   ): Element | null {
     let current = element.parentElement;
     let depth = 0;
@@ -209,7 +215,7 @@ export class DOMUtils {
   // 查找子级元素
   static findChildren(
     parent: Element,
-    predicate: (child: Element) => boolean
+    predicate: (child: Element) => boolean,
   ): Element[] {
     const children = Array.from(parent.children);
     return children.filter(predicate);
@@ -248,7 +254,7 @@ export class ContentReplacer {
   // 批量替换内容
   static async replaceContent(
     replacements: DOMReplacement[],
-    contentItems: ContentItem[]
+    contentItems: ContentItem[],
   ): Promise<void> {
     for (let i = 0; i < replacements.length && i < contentItems.length; i++) {
       const replacement = replacements[i];
@@ -261,21 +267,24 @@ export class ContentReplacer {
           replacement.replacement(element, content);
         }
       } catch (error) {
-        console.error('替换内容失败:', error);
+        console.error("替换内容失败:", error);
       }
     }
   }
 
   // 创建内容卡片
-  static createContentCard(content: ContentItem, platform: string): HTMLElement {
-    const card = DOMUtils.createElement('div', {
-      class: `onlyfocus-content-card onlyfocus-${platform}`,
+  static createContentCard(
+    content: ContentItem,
+    platform: string,
+  ): HTMLElement {
+    const card = DOMUtils.createElement("div", {
+      class: `onlyfollow-content-card onlyfollow-${platform}`,
     });
 
     // 缩略图
     if (content.thumbnail) {
-      const thumbnail = DOMUtils.createElement('img', {
-        class: 'onlyfocus-thumbnail',
+      const thumbnail = DOMUtils.createElement("img", {
+        class: "onlyfollow-thumbnail",
         src: content.thumbnail,
         alt: content.title,
       });
@@ -283,50 +292,52 @@ export class ContentReplacer {
     }
 
     // 内容信息
-    const info = DOMUtils.createElement('div', {
-      class: 'onlyfocus-info',
+    const info = DOMUtils.createElement("div", {
+      class: "onlyfollow-info",
     });
 
     // 标题
-    const title = DOMUtils.createElement('a', {
-      class: 'onlyfocus-title',
+    const title = DOMUtils.createElement("a", {
+      class: "onlyfollow-title",
       href: content.url,
-      target: '_blank',
+      target: "_blank",
     });
     title.textContent = content.title;
     info.appendChild(title);
 
     // 作者
-    const author = DOMUtils.createElement('div', {
-      class: 'onlyfocus-author',
+    const author = DOMUtils.createElement("div", {
+      class: "onlyfollow-author",
     });
     author.textContent = content.author.displayName;
     info.appendChild(author);
 
     // 发布时间
-    const publishedAt = DOMUtils.createElement('div', {
-      class: 'onlyfocus-published-at',
+    const publishedAt = DOMUtils.createElement("div", {
+      class: "onlyfollow-published-at",
     });
-    publishedAt.textContent = new Date(content.publishedAt).toLocaleDateString();
+    publishedAt.textContent = new Date(
+      content.publishedAt,
+    ).toLocaleDateString();
     info.appendChild(publishedAt);
 
     // 指标数据
     if (content.metrics) {
-      const metrics = DOMUtils.createElement('div', {
-        class: 'onlyfocus-metrics',
+      const metrics = DOMUtils.createElement("div", {
+        class: "onlyfollow-metrics",
       });
 
       if (content.metrics.views) {
-        const views = DOMUtils.createElement('span', {
-          class: 'onlyfocus-views',
+        const views = DOMUtils.createElement("span", {
+          class: "onlyfollow-views",
         });
         views.textContent = this.formatNumber(content.metrics.views);
         metrics.appendChild(views);
       }
 
       if (content.metrics.likes) {
-        const likes = DOMUtils.createElement('span', {
-          class: 'onlyfocus-likes',
+        const likes = DOMUtils.createElement("span", {
+          class: "onlyfollow-likes",
         });
         likes.textContent = this.formatNumber(content.metrics.likes);
         metrics.appendChild(likes);
@@ -343,7 +354,7 @@ export class ContentReplacer {
   // 格式化数字
   private static formatNumber(num: number): string {
     if (num >= 10000) {
-      return (num / 10000).toFixed(1) + '万';
+      return (num / 10000).toFixed(1) + "万";
     }
     return num.toString();
   }
@@ -357,56 +368,61 @@ export class PageDetector {
     const hostname = window.location.hostname;
 
     // Bilibili
-    if (hostname.includes('bilibili.com')) {
-      if (url.includes('/video/')) return 'bilibili_video';
-      if (url.includes('/space/')) return 'bilibili_space';
-      return 'bilibili_home';
+    if (hostname.includes("bilibili.com")) {
+      if (url.includes("/video/")) return "bilibili_video";
+      if (url.includes("/space/")) return "bilibili_space";
+      return "bilibili_home";
     }
 
     // YouTube
-    if (hostname.includes('youtube.com')) {
-      if (url.includes('/watch')) return 'youtube_watch';
-      if (url.includes('/channel/') || url.includes('/c/') || url.includes('/@')) return 'youtube_channel';
-      if (url.includes('/results')) return 'youtube_search';
-      return 'youtube_home';
+    if (hostname.includes("youtube.com")) {
+      if (url.includes("/watch")) return "youtube_watch";
+      if (
+        url.includes("/channel/") ||
+        url.includes("/c/") ||
+        url.includes("/@")
+      )
+        return "youtube_channel";
+      if (url.includes("/results")) return "youtube_search";
+      return "youtube_home";
     }
 
     // Twitter/X
-    if (hostname.includes('twitter.com') || hostname.includes('x.com')) {
-      if (url.includes('/status/')) return 'twitter_tweet';
-      if (url.includes('/home')) return 'twitter_home';
-      return 'twitter_general';
+    if (hostname.includes("twitter.com") || hostname.includes("x.com")) {
+      if (url.includes("/status/")) return "twitter_tweet";
+      if (url.includes("/home")) return "twitter_home";
+      return "twitter_general";
     }
 
     // Instagram
-    if (hostname.includes('instagram.com')) {
-      if (url.includes('/p/')) return 'instagram_post';
-      if (url.includes('/reel/')) return 'instagram_reel';
-      return 'instagram_home';
+    if (hostname.includes("instagram.com")) {
+      if (url.includes("/p/")) return "instagram_post";
+      if (url.includes("/reel/")) return "instagram_reel";
+      return "instagram_home";
     }
 
-    return 'unknown';
+    return "unknown";
   }
 
   // 检测是否为支持的平台
   static isSupportedPlatform(): boolean {
-    return this.detectPageType() !== 'unknown';
+    return this.detectPageType() !== "unknown";
   }
 
   // 等待页面加载完成
   static waitForPageLoad(): Promise<void> {
     return new Promise((resolve) => {
-      if (document.readyState === 'complete') {
+      if (document.readyState === "complete") {
         resolve();
         return;
       }
 
       const handleLoad = () => {
-        window.removeEventListener('load', handleLoad);
+        window.removeEventListener("load", handleLoad);
         resolve();
       };
 
-      window.addEventListener('load', handleLoad);
+      window.addEventListener("load", handleLoad);
     });
   }
 }

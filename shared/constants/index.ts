@@ -1,4 +1,4 @@
-import type { Platform } from '../types';
+import type { Platform } from "../types";
 
 // 平台默认配置
 export const DEFAULT_PLATFORM_CONFIGS: Record<Platform, PlatformConfig> = {
@@ -23,7 +23,7 @@ export const DEFAULT_PLATFORM_CONFIGS: Record<Platform, PlatformConfig> = {
     concurrentLimit: 3, // 3个并发请求
     maxItems: 30,
     customSettings: {
-      apiKey: '', // YouTube API key
+      apiKey: "", // YouTube API key
       maxResults: 50,
     },
   },
@@ -34,8 +34,8 @@ export const DEFAULT_PLATFORM_CONFIGS: Record<Platform, PlatformConfig> = {
     concurrentLimit: 2, // 最多2个并发
     maxItems: 25,
     customSettings: {
-      bearerToken: '', // Twitter Bearer Token
-      tweetFields: 'created_at,author_id,public_metrics',
+      bearerToken: "", // Twitter Bearer Token
+      tweetFields: "created_at,author_id,public_metrics",
     },
   },
   instagram: {
@@ -45,15 +45,20 @@ export const DEFAULT_PLATFORM_CONFIGS: Record<Platform, PlatformConfig> = {
     concurrentLimit: 1, // 单线程请求
     maxItems: 15,
     customSettings: {
-      accessToken: '', // Instagram Access Token
-      mediaFields: 'id,media_type,media_url,caption,timestamp',
+      accessToken: "", // Instagram Access Token
+      mediaFields: "id,media_type,media_url,caption,timestamp",
     },
   },
 };
 
 // 默认配置
 export const DEFAULT_CONFIG = {
-  enabledPlatforms: ['bilibili', 'youtube', 'twitter', 'instagram'] as Platform[],
+  enabledPlatforms: [
+    "bilibili",
+    "youtube",
+    "twitter",
+    "instagram",
+  ] as Platform[],
   globalSettings: {
     refreshInterval: 30 * 60 * 1000, // 30分钟
     shuffleEnabled: true,
@@ -62,7 +67,7 @@ export const DEFAULT_CONFIG = {
   platformSettings: DEFAULT_PLATFORM_CONFIGS,
   uiSettings: {
     showNotifications: true,
-    theme: 'auto' as const,
+    theme: "auto" as const,
   },
 };
 
@@ -77,106 +82,106 @@ export const CACHE_CONFIG = {
 // 平台配置
 export const PLATFORM_CONFIG = {
   bilibili: {
-    name: 'Bilibili',
-    domain: 'bilibili.com',
-    apiBase: 'https://api.bilibili.com',
+    name: "Bilibili",
+    domain: "bilibili.com",
+    apiBase: "https://api.bilibili.com",
     selectors: {
-      contentArea: '.bili-video-card',
-      videoCard: '.bili-video-card__info--tit a',
-      authorLink: '.bili-video-card__info--owner',
-      thumbnail: '.bili-video-card__cover img',
+      contentArea: ".bili-video-card",
+      videoCard: ".bili-video-card__info--tit a",
+      authorLink: ".bili-video-card__info--owner",
+      thumbnail: ".bili-video-card__cover img",
     },
     colors: {
-      primary: '#00a1d6',
-      secondary: '#fb7299',
+      primary: "#00a1d6",
+      secondary: "#fb7299",
     },
   },
   youtube: {
-    name: 'YouTube',
-    domain: 'youtube.com',
-    apiBase: 'https://www.googleapis.com/youtube/v3',
+    name: "YouTube",
+    domain: "youtube.com",
+    apiBase: "https://www.googleapis.com/youtube/v3",
     selectors: {
-      contentArea: 'ytd-rich-item-renderer',
-      videoCard: 'a#video-title',
-      authorLink: 'ytd-channel-name a',
-      thumbnail: 'img',
+      contentArea: "ytd-rich-item-renderer",
+      videoCard: "a#video-title",
+      authorLink: "ytd-channel-name a",
+      thumbnail: "img",
     },
     colors: {
-      primary: '#ff0000',
-      secondary: '#282828',
+      primary: "#ff0000",
+      secondary: "#282828",
     },
   },
   twitter: {
-    name: 'Twitter/X',
-    domain: 'twitter.com|x.com',
-    apiBase: 'https://api.twitter.com/2',
+    name: "Twitter/X",
+    domain: "twitter.com|x.com",
+    apiBase: "https://api.twitter.com/2",
     selectors: {
       contentArea: 'div[data-testid="tweet"]',
       tweetCard: 'a[href*="/status/"]',
       authorLink: 'a[href*="/"]',
-      thumbnail: 'img',
+      thumbnail: "img",
     },
     colors: {
-      primary: '#1da1f2',
-      secondary: '#14171a',
+      primary: "#1da1f2",
+      secondary: "#14171a",
     },
   },
   instagram: {
-    name: 'Instagram',
-    domain: 'instagram.com',
-    apiBase: 'https://graph.instagram.com',
+    name: "Instagram",
+    domain: "instagram.com",
+    apiBase: "https://graph.instagram.com",
     selectors: {
-      contentArea: 'article',
+      contentArea: "article",
       postCard: 'a[href*="/p/"]',
       authorLink: 'a[href*="/"]',
-      thumbnail: 'img',
+      thumbnail: "img",
     },
     colors: {
-      primary: '#e4405f',
-      secondary: '#ffffff',
+      primary: "#e4405f",
+      secondary: "#ffffff",
     },
   },
 } as const;
 
 // 存储键名
 export const STORAGE_KEYS = {
-  CONFIG: 'onlyfocus_config',
-  FOLLOWED_USERS: 'onlyfocus_followed_users',
-  CONTENT_CACHE: 'onlyfocus_content_cache',
-  METADATA_CACHE: 'onlyfocus_metadata_cache',
-  LAST_UPDATED: 'onlyfocus_last_updated',
+  CONFIG: "onlyfollow_config",
+  FOLLOWED_USERS: "onlyfollow_followed_users",
+  CONTENT_CACHE: "onlyfollow_content_cache",
+  METADATA_CACHE: "onlyfollow_metadata_cache",
+  LAST_UPDATED: "onlyfollow_last_updated",
 } as const;
 
 // 错误消息
 export const ERROR_MESSAGES = {
-  NOT_LOGGED_IN: '用户未登录，无法获取关注列表',
-  API_RATE_LIMIT: 'API请求频率限制，请稍后重试',
-  NETWORK_ERROR: '网络连接错误',
-  PERMISSION_DENIED: '权限不足',
-  PLATFORM_NOT_SUPPORTED: '不支持的平台',
-  CONTENT_NOT_FOUND: '未找到相关内容',
-  CACHE_EXPIRED: '缓存已过期',
-  INVALID_CONFIG: '配置无效',
+  NOT_LOGGED_IN: "用户未登录，无法获取关注列表",
+  API_RATE_LIMIT: "API请求频率限制，请稍后重试",
+  NETWORK_ERROR: "网络连接错误",
+  PERMISSION_DENIED: "权限不足",
+  PLATFORM_NOT_SUPPORTED: "不支持的平台",
+  CONTENT_NOT_FOUND: "未找到相关内容",
+  CACHE_EXPIRED: "缓存已过期",
+  INVALID_CONFIG: "配置无效",
 } as const;
 
 // 通知消息
 export const NOTIFICATION_MESSAGES = {
-  CONTENT_REPLACED: '内容已替换为关注内容',
-  PLATFORM_DETECTED: '检测到支持的平台',
-  ERROR_OCCURRED: '发生错误，请查看控制台',
-  CONFIG_UPDATED: '配置已更新',
-  CACHE_CLEARED: '缓存已清理',
+  CONTENT_REPLACED: "内容已替换为关注内容",
+  PLATFORM_DETECTED: "检测到支持的平台",
+  ERROR_OCCURRED: "发生错误，请查看控制台",
+  CONFIG_UPDATED: "配置已更新",
+  CACHE_CLEARED: "缓存已清理",
 } as const;
 
 // 调试信息
 export const DEBUG_CONFIG = {
-  enabled: process.env.NODE_ENV === 'development',
-  prefix: '[OnlyFocus]',
+  enabled: process.env.NODE_ENV === "development",
+  prefix: "[OnlyFollow]",
   colors: {
-    info: '#0066cc',
-    success: '#009900',
-    warning: '#ff9900',
-    error: '#cc0000',
+    info: "#0066cc",
+    success: "#009900",
+    warning: "#ff9900",
+    error: "#cc0000",
   },
 } as const;
 
@@ -185,19 +190,23 @@ export const PLATFORM_DETECTION = {
   bilibili: {
     match: /^https?:\/\/www\.bilibili\.com\//,
     test: () => {
-      return !!document.querySelector('.nav-user-info, .user-con, .header-avatar-wrap');
+      return !!document.querySelector(
+        ".nav-user-info, .user-con, .header-avatar-wrap",
+      );
     },
   },
   youtube: {
     match: /^https?:\/\/www\.youtube\.com\//,
     test: () => {
-      return !!document.querySelector('#avatar-btn');
+      return !!document.querySelector("#avatar-btn");
     },
   },
   twitter: {
     match: /^https?:\/\/(twitter\.com|x\.com)\//,
     test: () => {
-      return !!document.querySelector('[data-testid="SideNav_AccountSwitcher_Button"]');
+      return !!document.querySelector(
+        '[data-testid="SideNav_AccountSwitcher_Button"]',
+      );
     },
   },
   instagram: {

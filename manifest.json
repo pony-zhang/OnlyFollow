@@ -1,13 +1,9 @@
 {
   "manifest_version": 3,
-  "name": "OnlyFocus",
+  "name": "OnlyFollow",
   "version": "1.0.0",
   "description": "将各大平台的算法推荐替换为用户关注内容的随机展示，让你重新掌控信息流",
-  "permissions": [
-    "storage",
-    "activeTab",
-    "cookies"
-  ],
+  "permissions": ["storage", "activeTab", "cookies"],
   "host_permissions": [
     "https://*.bilibili.com/*",
     "https://*.youtube.com/*",
@@ -36,7 +32,7 @@
   ],
   "action": {
     "default_popup": "popup.html",
-    "default_title": "OnlyFocus",
+    "default_title": "OnlyFollow",
     "default_icon": {
       "16": "assets/icons/icon16.png",
       "32": "assets/icons/icon32.png",

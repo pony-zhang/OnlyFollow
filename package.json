@@ -1,5 +1,5 @@
 {
-  "name": "onlyfocus",
+  "name": "onlyfollow",
   "version": "1.0.0",
   "description": "将各大平台的算法推荐替换为用户关注内容的随机展示",
   "type": "module",

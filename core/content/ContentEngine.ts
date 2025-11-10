@@ -3,6 +3,8 @@ import { configManager } from "../config/ConfigManager";
 import { StorageManager } from "../../shared/utils/storage";
 import { ChromeExtensionApi } from "../../shared/utils/api";
 import { CACHE_CONFIG, DEBUG_CONFIG } from "../../shared/constants";
+import { stateManager } from "../state";
+import type { StateChangeEvent } from "../state";
 
 export interface ContentEngineOptions {
   platform?: Platform;
@@ -17,9 +19,12 @@ export class ContentEngine {
   private refreshTimer: NodeJS.Timeout | null = null;
   private lastRefresh: number = 0;
   private eventListeners: Map<string, Function[]> = new Map();
+  private currentPlatform: Platform | null = null;
+  private isInitialized: boolean = false;
 
   private constructor() {
     this.initializeEventListeners();
+    this.setupStateListeners();
   }
 
   static getInstance(): ContentEngine {
@@ -39,6 +44,26 @@ export class ContentEngine {
     });
   }
 
+  // 初始化内容引擎
+  async initialize(): Promise<void> {
+    if (this.isInitialized) {
+      return;
+    }
+
+    try {
+      this.log("初始化内容引擎...", "info");
+
+      // 初始化状态管理器
+      await stateManager.initialize();
+
+      this.isInitialized = true;
+      this.log("内容引擎初始化成功", "success");
+    } catch (error) {
+      this.log(`初始化内容引擎失败: ${error}`, "error");
+      throw error;
+    }
+  }
+
   // 启动内容引擎
   async start(options?: ContentEngineOptions): Promise<void> {
     if (this.isRunning) {
@@ -46,31 +71,52 @@ export class ContentEngine {
       return;
     }
 
+    // 确保已初始化
+    await this.initialize();
+
     try {
       this.log("启动内容引擎...", "info");
+
+      // 检查插件是否启用
+      if (!stateManager.isPluginEnabled()) {
+        throw new Error("插件未启用");
+      }
+
       const config = await configManager.getConfig();
 
       // 合并选项
       const finalOptions: Required<ContentEngineOptions> = {
         platform: options?.platform || (null as any),
-        maxItems: options?.maxItems || config.contentSettings.maxItems,
+        maxItems:
+          options?.maxItems || config.globalSettings.maxItemsPerPlatform,
         refreshInterval:
-          options?.refreshInterval || config.contentSettings.refreshInterval,
+          options?.refreshInterval || config.globalSettings.refreshInterval,
         shuffleEnabled:
-          options?.shuffleEnabled || config.contentSettings.shuffleEnabled,
+          options?.shuffleEnabled || config.globalSettings.shuffleEnabled,
       };
 
       // 检查是否启用了当前平台
       if (finalOptions.platform) {
-        const isPlatformEnabled = await configManager.isPlatformEnabled(
+        const isPlatformEnabled = stateManager.isPlatformEnabled(
           finalOptions.platform,
         );
         if (!isPlatformEnabled) {
           throw new Error(`平台 ${finalOptions.platform} 未启用`);
         }
+        this.currentPlatform = finalOptions.platform;
       }
 
       this.isRunning = true;
+      this.lastRefresh = Date.now();
+
+      // 更新状态管理器
+      await stateManager.updateEngineRunningState(true);
+
+      // 更新平台活动状态
+      if (finalOptions.platform) {
+        await stateManager.updatePlatformActivity(finalOptions.platform, true);
+      }
+
       this.emit("engineStarted", { options: finalOptions });
 
       // 立即获取一次内容
@@ -83,12 +129,23 @@ export class ContentEngine {
     } catch (error) {
       this.log(`启动内容引擎失败: ${error}`, "error");
       this.isRunning = false;
+
+      // 更新错误状态
+      await stateManager.updateEngineRunningState(false, String(error));
+      if (this.currentPlatform) {
+        await stateManager.updatePlatformActivity(
+          this.currentPlatform,
+          false,
+          String(error),
+        );
+      }
+
       throw error;
     }
   }
 
   // 停止内容引擎
-  stop(): void {
+  async stop(): Promise<void> {
     if (!this.isRunning) {
       return;
     }
@@ -102,13 +159,21 @@ export class ContentEngine {
       this.refreshTimer = null;
     }
 
+    // 更新状态管理器
+    await stateManager.updateEngineRunningState(false);
+
+    // 更新平台活动状态
+    if (this.currentPlatform) {
+      await stateManager.updatePlatformActivity(this.currentPlatform, false);
+    }
+
     this.emit("engineStopped");
     this.log("内容引擎已停止", "success");
   }
 
   // 重启内容引擎
   async restart(): Promise<void> {
-    this.stop();
+    await this.stop();
     await this.start();
   }
 
@@ -125,7 +190,8 @@ export class ContentEngine {
       const config = await configManager.getConfig();
       const finalOptions: Required<ContentEngineOptions> = {
         platform: options?.platform || (null as any),
-        maxItems: options?.maxItems || config.globalSettings.maxItemsPerPlatform,
+        maxItems:
+          options?.maxItems || config.globalSettings.maxItemsPerPlatform,
         refreshInterval:
           options?.refreshInterval || config.globalSettings.refreshInterval,
         shuffleEnabled:
@@ -206,8 +272,8 @@ export class ContentEngine {
     platform?: Platform,
   ): Promise<void> {
     const cacheKey = platform
-      ? `onlyfocus_${platform}_content_latest`
-      : "onlyfocus_content_latest";
+      ? `onlyfollow_${platform}_content_latest`
+      : "onlyfollow_content_latest";
 
     await StorageManager.setCache(cacheKey, content, CACHE_CONFIG.CONTENT);
     this.log(`内容已缓存到: ${cacheKey}`, "info");
@@ -232,7 +298,7 @@ export class ContentEngine {
           console.log("[ContentEngine] 所有存储键:", Object.keys(allItems));
 
           const possibleKeys = Object.keys(allItems).filter((key) =>
-            key.startsWith("onlyfocus_bilibili_videos_"),
+            key.startsWith("onlyfollow_bilibili_videos_"),
           );
 
           console.log("[ContentEngine] 找到的视频缓存键:", possibleKeys);
@@ -273,11 +339,11 @@ export class ContentEngine {
       }
     } else if (platform) {
       console.log("[ContentEngine] 使用平台特定缓存键");
-      const cacheKey = `onlyfocus_${platform}_content_latest`;
+      const cacheKey = `onlyfollow_${platform}_content_latest`;
       return await StorageManager.getCache<ContentItem[]>(cacheKey);
     } else {
       console.log("[ContentEngine] 使用默认缓存键");
-      const cacheKey = "onlyfocus_content_latest";
+      const cacheKey = "onlyfollow_content_latest";
       return await StorageManager.getCache<ContentItem[]>(cacheKey);
     }
   }
@@ -398,7 +464,7 @@ export class ContentEngine {
 
           possibleKeys.push(
             ...Object.keys(allItems).filter((key) =>
-              key.startsWith("onlyfocus_bilibili_followings_"),
+              key.startsWith("onlyfollow_bilibili_followings_"),
             ),
           );
         }
@@ -434,9 +500,9 @@ export class ContentEngine {
         return [];
       }
     } else if (platform) {
-      cacheKey = `onlyfocus_${platform}_followed_users`;
+      cacheKey = `onlyfollow_${platform}_followed_users`;
     } else {
-      cacheKey = "onlyfocus_followed_users";
+      cacheKey = "onlyfollow_followed_users";
     }
 
     const users = await StorageManager.getCache<FollowedUser[]>(cacheKey);
@@ -466,10 +532,10 @@ export class ContentEngine {
 
         // 查找所有平台相关的缓存键
         const followingsKeys = Object.keys(allItems).filter((key) =>
-          key.startsWith("onlyfocus_bilibili_followings_"),
+          key.startsWith("onlyfollow_bilibili_followings_"),
         );
         const videoKeys = Object.keys(allItems).filter((key) =>
-          key.startsWith("onlyfocus_bilibili_videos_"),
+          key.startsWith("onlyfollow_bilibili_videos_"),
         );
 
         console.log("[ContentEngine] 找到的关注缓存键:", followingsKeys);
@@ -513,6 +579,9 @@ export class ContentEngine {
     lastRefresh: number;
     nextRefresh: number | null;
     uptime: number;
+    pluginEnabled: boolean;
+    platformEnabled: boolean;
+    currentPlatform: Platform | null;
   } {
     const now = Date.now();
     const uptime =
@@ -523,7 +592,68 @@ export class ContentEngine {
       lastRefresh: this.lastRefresh,
       nextRefresh: this.refreshTimer ? this.lastRefresh + 30000 : null, // 假设30秒刷新间隔
       uptime,
+      pluginEnabled: stateManager.isPluginEnabled(),
+      platformEnabled: this.currentPlatform
+        ? stateManager.isPlatformEnabled(this.currentPlatform)
+        : false,
+      currentPlatform: this.currentPlatform,
     };
+  }
+
+  // 获取完整状态信息
+  getFullState() {
+    return {
+      engine: this.getStatus(),
+      plugin: stateManager.getPluginState(),
+      platforms: Object.fromEntries(
+        Object.entries(stateManager.getState().platforms).map(
+          ([key, state]) => [key, state],
+        ),
+      ),
+      statistics: stateManager.getStateStatistics(),
+    };
+  }
+
+  // 设置状态监听器
+  private setupStateListeners(): void {
+    // 监听插件状态变化
+    stateManager.addStateChangeListener("plugin", (event: StateChangeEvent) => {
+      console.log("[ContentEngine] 插件状态变化:", event);
+
+      // 如果插件被禁用，停止引擎
+      if (event.key === "plugin" && !event.newValue.enabled && this.isRunning) {
+        console.log("[ContentEngine] 插件被禁用，停止引擎");
+        this.stop();
+      }
+
+      // 如果插件从暂停恢复，尝试重启引擎
+      if (
+        event.key === "plugin" &&
+        !event.oldValue.enabled &&
+        event.newValue.enabled
+      ) {
+        console.log("[ContentEngine] 插件被启用，尝试启动引擎");
+        // 这里不自动启动，让用户手动控制
+      }
+    });
+
+    // 监听平台状态变化
+    stateManager.addStateChangeListener(
+      "platform",
+      (event: StateChangeEvent) => {
+        console.log("[ContentEngine] 平台状态变化:", event);
+
+        // 如果当前平台被禁用，停止引擎
+        if (
+          event.key === this.currentPlatform &&
+          !event.newValue.enabled &&
+          this.isRunning
+        ) {
+          console.log(`[ContentEngine] 平台 ${event.key} 被禁用，停止引擎`);
+          this.stop();
+        }
+      },
+    );
   }
 
   // 手动触发刷新
@@ -537,11 +667,11 @@ export class ContentEngine {
     const keysToRemove: string[] = [];
 
     if (platform) {
-      keysToRemove.push(`onlyfocus_${platform}_content_latest`);
-      keysToRemove.push(`onlyfocus_${platform}_followed_users`);
+      keysToRemove.push(`onlyfollow_${platform}_content_latest`);
+      keysToRemove.push(`onlyfollow_${platform}_followed_users`);
     } else {
-      keysToRemove.push("onlyfocus_content_latest");
-      keysToRemove.push("onlyfocus_followed_users");
+      keysToRemove.push("onlyfollow_content_latest");
+      keysToRemove.push("onlyfollow_followed_users");
     }
 
     for (const key of keysToRemove) {
@@ -559,13 +689,20 @@ export class ContentEngine {
 
       // 获取用户相关的缓存键信息用于日志
       const userCacheKeys = await StorageManager.getUserCacheKeys(userId);
-      this.log(`找到 ${userCacheKeys.length} 个与用户 ${userId} 相关的缓存键`, "info");
+      this.log(
+        `找到 ${userCacheKeys.length} 个与用户 ${userId} 相关的缓存键`,
+        "info",
+      );
 
       // 删除用户数据
       await StorageManager.deleteUser(userId, platform);
 
       this.log(`用户 ${userId} 删除成功`, "success");
-      this.emit("userDeleted", { userId, platform, deletedKeys: userCacheKeys });
+      this.emit("userDeleted", {
+        userId,
+        platform,
+        deletedKeys: userCacheKeys,
+      });
     } catch (error) {
       this.log(`删除用户 ${userId} 失败: ${error}`, "error");
       this.emit("userDeleteFailed", { userId, platform, error });
@@ -586,10 +723,14 @@ export class ContentEngine {
 
       // 统计该用户的视频数量和缓存大小
       for (const key of userCacheKeys) {
-        if (key.includes('_videos_') && key.includes(userId)) {
+        if (key.includes("_videos_") && key.includes(userId)) {
           try {
             const cacheItem = await chrome.storage.local.get(key);
-            if (cacheItem[key] && cacheItem[key].data && Array.isArray(cacheItem[key].data)) {
+            if (
+              cacheItem[key] &&
+              cacheItem[key].data &&
+              Array.isArray(cacheItem[key].data)
+            ) {
               videoCount += cacheItem[key].data.length;
               // 估算缓存大小（粗略计算）
               cacheSize += JSON.stringify(cacheItem[key]).length;
@@ -603,14 +744,14 @@ export class ContentEngine {
       return {
         videoCount,
         cacheSize: Math.round(cacheSize / 1024), // 转换为KB
-        relatedKeys: userCacheKeys
+        relatedKeys: userCacheKeys,
       };
     } catch (error) {
       this.log(`获取用户 ${userId} 缓存信息失败: ${error}`, "error");
       return {
         videoCount: 0,
         cacheSize: 0,
-        relatedKeys: []
+        relatedKeys: [],
       };
     }
   }
