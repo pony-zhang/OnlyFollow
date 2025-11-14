@@ -1,4 +1,4 @@
-import type { Platform } from "../types";
+import type { Platform, PlatformConfig } from "../types";
 
 // 平台默认配置
 export const DEFAULT_PLATFORM_CONFIGS: Record<Platform, PlatformConfig> = {

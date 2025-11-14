@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { createRoot } from "react-dom/client";
-import type { UserConfig, Platform } from "../shared/types";
-import { ChromeExtensionApi } from "../shared/utils/api";
+import type { UserConfig, Platform } from "../../shared/types";
+import { ChromeExtensionApi } from "../../shared/utils/api";
 
 // 兼容性函数：将新配置转换为旧格式以保持UI兼容
 const getLegacyConfig = (config: UserConfig | null) => {

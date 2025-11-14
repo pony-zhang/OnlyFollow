@@ -5,9 +5,9 @@ import type {
   ContentItem,
   FollowedUser,
   Platform,
-} from "../shared/types";
-import { ChromeExtensionApi } from "../shared/utils/api";
-import { NumberFormatter, DateFormatter } from "../shared/utils/format";
+} from "../../shared/types";
+import { ChromeExtensionApi } from "../../shared/utils/api";
+import { NumberFormatter, DateFormatter } from "../../shared/utils/format";
 
 interface DashboardState {
   config: UserConfig | null;

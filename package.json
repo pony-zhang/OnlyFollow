@@ -4,13 +4,18 @@
   "description": "将各大平台的算法推荐替换为用户关注内容的随机展示",
   "type": "module",
   "scripts": {
-    "dev": "bun run build",
+    "dev": "bun run scripts/build.ts dev",
     "build": "bun run scripts/build.ts",
+    "build:dev": "bun run scripts/build.ts dev",
+    "build:prod": "bun run scripts/build.ts prod",
+    "build:analyze": "bun run scripts/build.ts build --analyze",
+    "build:clean": "bun run scripts/build.ts build --clean",
     "build:tsc": "tsc --noEmit",
     "clean": "rm -rf dist",
+    "watch": "bun run scripts/build.ts dev --watch",
     "package": "bun run scripts/package.ts",
     "package:dev": "bun run scripts/package.ts",
-    "release": "bun run clean && bun run package"
+    "release": "bun run clean && bun run build:prod && bun run package"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.0.5",
@@ -19,6 +24,7 @@
     "@radix-ui/react-switch": "^1.0.3",
     "@radix-ui/react-tabs": "^1.0.4",
     "clsx": "^2.1.1",
+    "commander": "^14.0.2",
     "lucide-react": "^0.475.0",
     "react": "^19",
     "react-dom": "^19",

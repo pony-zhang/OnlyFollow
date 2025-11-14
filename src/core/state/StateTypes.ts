@@ -1,4 +1,4 @@
-import type { Platform } from '../types';
+import type { Platform } from '../../shared/types';
 
 /**
  * 插件全局状态接口

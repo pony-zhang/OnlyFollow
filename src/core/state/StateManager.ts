@@ -7,11 +7,13 @@ import type {
   EngineState,
   StateChangeEvent,
   StateChangeListener,
+} from "./StateTypes";
+import {
   DEFAULT_PLUGIN_STATE,
   DEFAULT_PLATFORM_STATE,
   DEFAULT_ENGINE_STATE,
 } from "./StateTypes";
-import type { Platform } from "../types";
+import type { Platform } from "../../shared/types";
 
 /**
  * 状态管理器 - 负责插件状态的统一管理

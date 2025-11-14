@@ -17,26 +17,26 @@
     "jsx": "react-jsx",
     "declaration": true,
     "outDir": "./dist",
-    "rootDir": "./",
-    "baseUrl": "./",
+    "rootDir": "./src",
+    "baseUrl": "./src",
     "paths": {
-      "@/*": ["./*"]
+      "@/*": ["./*"],
+      "@/components/*": ["./components/*"],
+      "@/pages/*": ["./pages/*"],
+      "@/core/*": ["./core/*"],
+      "@/shared/*": ["./shared/*"],
+      "@/styles/*": ["./styles/*"],
+      "@/assets/*": ["./assets/*"]
     },
     "types": ["chrome", "node"]
   },
   "include": [
-    "background/**/*",
-    "content/**/*",
-    "popup/**/*",
-    "options/**/*",
-    "dashboard/**/*",
-    "core/**/*",
-    "shared/**/*"
+    "src/**/*"
   ],
   "exclude": [
     "node_modules",
     "dist",
     "build",
-    "src"
+    "release"
   ]
 }

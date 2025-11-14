@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { createRoot } from "react-dom/client";
-import type { UserConfig, Platform } from "../shared/types";
-import { ChromeExtensionApi } from "../shared/utils/api";
+import type { UserConfig, Platform } from "../../shared/types";
+import { ChromeExtensionApi } from "../../shared/utils/api";
 
 interface PopupState {
   config: UserConfig | null;
