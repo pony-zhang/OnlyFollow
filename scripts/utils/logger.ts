@@ -43,18 +43,25 @@ export class BuildLogger {
   end(): void {
     this.stats.endTime = Date.now();
     this.stats.duration = this.stats.endTime - (this.stats.startTime || 0);
-    this.stats.totalSize = this.stats.files?.reduce((sum, file) => sum + file.size, 0) || 0;
+    this.stats.totalSize =
+      this.stats.files?.reduce((sum, file) => sum + file.size, 0) || 0;
 
     this.log(`✅ 构建完成！耗时: ${this.stats.duration}ms`, "success");
     this.log(`📦 构建统计:`, "info");
     this.log(`  - 文件数量: ${this.stats.files?.length || 0}`, "info");
     this.log(`  - 总大小: ${this.formatSize(this.stats.totalSize)}`, "info");
-    this.log(`  - 错误数量: ${this.stats.errors}`, this.stats.errors > 0 ? "error" : "success");
-    this.log(`  - 警告数量: ${this.stats.warnings}`, this.stats.warnings > 0 ? "warning" : "success");
+    this.log(
+      `  - 错误数量: ${this.stats.errors}`,
+      this.stats.errors > 0 ? "error" : "success",
+    );
+    this.log(
+      `  - 警告数量: ${this.stats.warnings}`,
+      this.stats.warnings > 0 ? "warning" : "success",
+    );
 
     if (this.stats.files && this.stats.files.length > 0) {
       this.log("\n📄 文件详情:", "info");
-      this.stats.files.forEach(file => {
+      this.stats.files.forEach((file) => {
         this.log(`  - ${file.name}: ${this.formatSize(file.size)}`, "info");
       });
     }

@@ -24,7 +24,10 @@ export class Builder {
     this.typeCheckEnabled = typeCheckEnabled;
   }
 
-  async build(configs: BuildConfig[], parallel: boolean = true): Promise<BuildResult[]> {
+  async build(
+    configs: BuildConfig[],
+    parallel: boolean = true,
+  ): Promise<BuildResult[]> {
     logger.log(`🔨 开始构建 ${configs.length} 个目标...`, "info");
 
     const results: BuildResult[] = [];
@@ -32,7 +35,7 @@ export class Builder {
     if (parallel) {
       // 并行构建
       const buildPromises = configs.map((config, index) =>
-        this.buildSingle(config, index + 1, configs.length)
+        this.buildSingle(config, index + 1, configs.length),
       );
       const buildResults = await Promise.allSettled(buildPromises);
 
@@ -40,10 +43,19 @@ export class Builder {
         if (result.status === "fulfilled") {
           results.push(result.value);
         } else {
-          logger.addError(`构建目标 ${configs[index].name} 失败`, result.reason);
+          logger.addError(
+            `构建目标 ${configs[index].name} 失败`,
+            result.reason,
+          );
           results.push({
             config: configs[index],
-            result: { errors: [], warnings: [] },
+            result: {
+              errors: [],
+              warnings: [],
+              outputFiles: [],
+              metafile: null,
+              mangleCache: null
+            },
             duration: 0,
             success: false,
             errors: [result.reason?.message || "未知错误"],
@@ -54,18 +66,24 @@ export class Builder {
     } else {
       // 串行构建
       for (let i = 0; i < configs.length; i++) {
-        const result = await this.buildSingle(configs[i], i + 1, configs.length);
+        const result = await this.buildSingle(
+          configs[i],
+          i + 1,
+          configs.length,
+        );
         results.push(result);
 
         // 如果有错误且不是并行构建，可以选择是否继续
         if (!result.success && configs.length > 1) {
-          logger.addWarning(`构建目标 ${configs[i].name} 失败，继续构建其他目标...`);
+          logger.addWarning(
+            `构建目标 ${configs[i].name} 失败，继续构建其他目标...`,
+          );
         }
       }
     }
 
     // 统计结果
-    const successful = results.filter(r => r.success).length;
+    const successful = results.filter((r) => r.success).length;
     const failed = results.length - successful;
 
     if (failed > 0) {
@@ -77,7 +95,11 @@ export class Builder {
     return results;
   }
 
-  private async buildSingle(config: BuildConfig, step: number, total: number): Promise<BuildResult> {
+  private async buildSingle(
+    config: BuildConfig,
+    step: number,
+    total: number,
+  ): Promise<BuildResult> {
     const startTime = Date.now();
     logger.step(step, total, `构建 ${config.name}`);
 
@@ -105,11 +127,11 @@ export class Builder {
       }
 
       // 记录警告和错误
-      result.warnings.forEach(warning => {
+      result.warnings.forEach((warning) => {
         logger.addWarning(`${config.name}: ${warning.text}`);
       });
 
-      result.errors.forEach(error => {
+      result.errors.forEach((error) => {
         logger.addError(`${config.name}: ${error.text}`);
       });
 
@@ -118,17 +140,22 @@ export class Builder {
         result,
         duration,
         success,
-        errors: result.errors.map(e => e.text),
-        warnings: result.warnings.map(w => w.text),
+        errors: result.errors.map((e) => e.text),
+        warnings: result.warnings.map((w) => w.text),
       };
-
     } catch (error) {
       const duration = Date.now() - startTime;
       logger.addError(`构建 ${config.name} 时发生异常`, error as Error);
 
       return {
         config,
-        result: { errors: [], warnings: [] },
+        result: {
+          errors: [],
+          warnings: [],
+          outputFiles: [],
+          metafile: null,
+          mangleCache: null
+        },
         duration,
         success: false,
         errors: [(error as Error).message],
@@ -161,16 +188,21 @@ export class Builder {
         result,
         duration,
         success,
-        errors: result.errors.map(e => e.text),
-        warnings: result.warnings.map(w => w.text),
+        errors: result.errors.map((e) => e.text),
+        warnings: result.warnings.map((w) => w.text),
       };
-
     } catch (error) {
       logger.addError(`增量构建 ${config.name} 失败`, error as Error);
 
       return {
         config,
-        result: { errors: [], warnings: [] },
+        result: {
+          errors: [],
+          warnings: [],
+          outputFiles: [],
+          metafile: null,
+          mangleCache: null
+        },
         duration: 0,
         success: false,
         errors: [(error as Error).message],
@@ -181,7 +213,9 @@ export class Builder {
 
   private shouldTypeCheck(config: BuildConfig): boolean {
     // 只对 TypeScript 文件进行类型检查
-    return config.entryPoint.endsWith('.ts') || config.entryPoint.endsWith('.tsx');
+    return (
+      config.entryPoint.endsWith(".ts") || config.entryPoint.endsWith(".tsx")
+    );
   }
 
   private async runTypeCheck(config: BuildConfig): Promise<void> {
@@ -205,10 +239,9 @@ export class Builder {
       }
 
       // 启动监听
-      await Promise.all(contexts.map(context => context.watch()));
+      await Promise.all(contexts.map((context) => context.watch()));
 
       logger.log("✅ 监听模式已启动，文件变化将自动重新构建", "success");
-
     } catch (error) {
       logger.addError("启动监听模式失败", error as Error);
       await this.dispose();
@@ -219,7 +252,8 @@ export class Builder {
   async dispose(): Promise<void> {
     logger.log("🧹 清理构建资源...", "info");
 
-    for (const [name, context] of this.incrementalBuilders) {
+    const builderEntries = Array.from(this.incrementalBuilders.entries());
+    for (const [name, context] of builderEntries) {
       try {
         await context.dispose();
         logger.log(`已清理 ${name} 的构建上下文`, "debug");

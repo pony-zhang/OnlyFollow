@@ -11,7 +11,7 @@ import { assetProcessor } from "./utils/assets";
 import { logger } from "./utils/logger";
 import { promises as fs } from "fs";
 
-interface BuildOptions {
+export interface BuildOptions {
   mode: "development" | "production";
   watch?: boolean;
   analyze?: boolean;
@@ -39,7 +39,7 @@ async function ensureOutputDir(outputDir: string): Promise<void> {
   }
 }
 
-async function buildProject(options: BuildOptions): Promise<void> {
+export async function buildProject(options: BuildOptions): Promise<void> {
   const startTime = Date.now();
   logger.reset();
   assetProcessor.reset();
@@ -71,11 +71,11 @@ async function buildProject(options: BuildOptions): Promise<void> {
     // 构建代码
     const buildResults = await builder.build(
       projectConfig.entryPoints,
-      options.parallel !== false // 默认并行构建
+      options.parallel !== false, // 默认并行构建
     );
 
     // 检查是否有构建错误
-    const hasErrors = buildResults.some(result => !result.success);
+    const hasErrors = buildResults.some((result) => !result.success);
     if (hasErrors) {
       logger.addError("存在构建错误，构建失败");
       process.exit(1);
@@ -99,7 +99,6 @@ async function buildProject(options: BuildOptions): Promise<void> {
       // 保持进程运行，等待用户手动退出
       await new Promise(() => {}); // 永远不resolve，等待信号中断
     }
-
   } catch (error) {
     logger.addError("构建过程中发生异常", error as Error);
     logger.end();
@@ -131,7 +130,10 @@ function printBuildAnalysis(results: any[], totalTime: number): void {
   logger.log("\n构建目标详情:", "info");
   results.forEach((result, index) => {
     const status = result.success ? "✅" : "❌";
-    logger.log(`  ${status} ${result.config.name} (${result.duration}ms)`, result.success ? "success" : "error");
+    logger.log(
+      `  ${status} ${result.config.name} (${result.duration}ms)`,
+      result.success ? "success" : "error",
+    );
 
     if (result.warnings.length > 0) {
       logger.log(`    ⚠️ 警告: ${result.warnings.length}`, "warning");
@@ -184,7 +186,11 @@ program
 program
   .command("build")
   .description("构建项目")
-  .option("-m, --mode <mode>", "构建模式 (development|production)", "production")
+  .option(
+    "-m, --mode <mode>",
+    "构建模式 (development|production)",
+    "production",
+  )
   .option("-w, --watch", "启用文件监听模式")
   .option("-a, --analyze", "显示构建分析报告")
   .option("--no-typecheck", "禁用类型检查")
@@ -196,7 +202,9 @@ program
 
 program
   .command("dev")
-  .description("开发模式构建（等同于 build --mode development --watch --no-clean")
+  .description(
+    "开发模式构建（等同于 build --mode development --watch --no-clean",
+  )
   .option("--no-typecheck", "禁用类型检查")
   .option("--no-parallel", "禁用并行构建")
   .action(async (options: Partial<BuildOptions>) => {

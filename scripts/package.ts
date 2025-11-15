@@ -4,7 +4,7 @@
  * Chrome Extension 打包脚本
  */
 
-import { build } from "./build.js";
+import { buildProject } from "./build";
 import { readdir, writeFile, unlink } from "fs/promises";
 import { join } from "path";
 import { createWriteStream } from "fs";
@@ -243,7 +243,13 @@ async function packageExtension(): Promise<void> {
 
     // 2. 执行构建
     console.log("\n🔨 执行构建...");
-    await build();
+    await buildProject({
+      mode: "production",
+      watch: false,
+      clean: false,
+      parallel: true,
+      typecheck: true,
+    });
 
     // 3. 验证构建文件
     console.log("\n✅ 验证构建文件...");
@@ -274,7 +280,7 @@ async function packageExtension(): Promise<void> {
 }
 
 // 如果直接运行此脚本
-if (import.meta.main) {
+if (require.main === module) {
   packageExtension();
 }
 

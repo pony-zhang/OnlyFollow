@@ -17,7 +17,7 @@ export interface BuildConfig {
   footer?: string;
   define?: Record<string, string>;
   minify?: boolean;
-  sourcemap?: boolean;
+  sourcemap?: boolean | "external" | "inline" | "both";
   jsx?: "transform" | "preserve";
   jsxFactory?: string;
   jsxFragment?: string;
@@ -83,7 +83,7 @@ export const defaultBuildConfig: BuildConfig[] = [
     platform: "browser",
     target: ["chrome100"],
     external: ["chrome"],
-    jsx: "automatic",
+    jsx: "transform",
     banner: "// OnlyFollow popup\n",
     minify: false,
     sourcemap: false,
@@ -97,7 +97,7 @@ export const defaultBuildConfig: BuildConfig[] = [
     platform: "browser",
     target: ["chrome100"],
     external: ["chrome"],
-    jsx: "automatic",
+    jsx: "transform",
     banner: "// OnlyFollow options page\n",
     minify: false,
     sourcemap: false,
@@ -111,7 +111,7 @@ export const defaultBuildConfig: BuildConfig[] = [
     platform: "browser",
     target: ["chrome100"],
     external: ["chrome"],
-    jsx: "automatic",
+    jsx: "transform",
     banner: "// OnlyFollow dashboard\n",
     minify: false,
     sourcemap: false,
@@ -123,16 +123,32 @@ export const defaultBuildConfig: BuildConfig[] = [
 export const defaultAssetConfig: AssetConfig[] = [
   // HTML 文件
   { from: "src/pages/popup/popup.html", to: "dist/popup.html", type: "file" },
-  { from: "src/pages/options/options.html", to: "dist/options.html", type: "file" },
-  { from: "src/pages/dashboard/dashboard.html", to: "dist/dashboard.html", type: "file" },
+  {
+    from: "src/pages/options/options.html",
+    to: "dist/options.html",
+    type: "file",
+  },
+  {
+    from: "src/pages/dashboard/dashboard.html",
+    to: "dist/dashboard.html",
+    type: "file",
+  },
 
   // manifest 文件
   { from: "public/manifest.json", to: "dist/manifest.json", type: "file" },
 
   // CSS 文件
   { from: "src/pages/popup/popup.css", to: "dist/popup.css", type: "file" },
-  { from: "src/pages/options/options.css", to: "dist/options.css", type: "file" },
-  { from: "src/pages/dashboard/dashboard.css", to: "dist/dashboard.css", type: "file" },
+  {
+    from: "src/pages/options/options.css",
+    to: "dist/options.css",
+    type: "file",
+  },
+  {
+    from: "src/pages/dashboard/dashboard.css",
+    to: "dist/dashboard.css",
+    type: "file",
+  },
 
   // 图标文件
   { from: "public/icons", to: "dist/assets/icons", type: "directory" },
@@ -166,12 +182,12 @@ export const environmentConfigs = {
 export function createProjectConfig(
   environment: BuildEnvironment,
   customBuilds: BuildConfig[] = [],
-  customAssets: AssetConfig[] = []
+  customAssets: AssetConfig[] = [],
 ): ProjectConfig {
   const envConfig = environmentConfigs[environment.mode];
 
   const entryPoints = [
-    ...defaultBuildConfig.map(build => ({
+    ...defaultBuildConfig.map((build) => ({
       ...build,
       ...envConfig,
       define: {
